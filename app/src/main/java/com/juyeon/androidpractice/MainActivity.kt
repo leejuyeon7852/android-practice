@@ -4,14 +4,19 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
 import com.juyeon.androidpractice.ui.theme.AndroidPracticeTheme
+import com.juyeon.androidpractice.ui.theme.BackgroundBase
+import com.juyeon.androidpractice.ui.theme.component.BottomNavItem
+import com.juyeon.androidpractice.ui.theme.component.BottomNavigationBar
+import com.juyeon.androidpractice.ui.theme.component.GradientBackground
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -19,29 +24,22 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             AndroidPracticeTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
-                    )
+                var currentRoute by remember { mutableStateOf(BottomNavItem.Home.route) }
+
+                Scaffold(
+                    containerColor = BackgroundBase,
+                    bottomBar = {
+                        BottomNavigationBar(
+                            currentRoute = currentRoute,
+                            onItemClick = { currentRoute = it.route }
+                        )
+                    }
+                ) { innerPadding ->
+                    GradientBackground {
+                        Box(modifier = Modifier.padding(innerPadding))
+                    }
                 }
             }
         }
-    }
-}
-
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    AndroidPracticeTheme {
-        Greeting("Android")
     }
 }
