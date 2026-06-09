@@ -1,4 +1,4 @@
-package com.juyeon.androidpractice.ui.theme.component
+package com.juyeon.androidpractice.ui.component
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
