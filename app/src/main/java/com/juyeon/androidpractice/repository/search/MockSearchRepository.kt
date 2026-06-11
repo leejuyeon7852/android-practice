@@ -1,6 +1,7 @@
-package com.juyeon.androidpractice.repository
+package com.juyeon.androidpractice.repository.search
 
 import com.juyeon.androidpractice.model.PostItem
+import com.juyeon.androidpractice.repository.search.SearchRepository
 
 class MockSearchRepository : SearchRepository {
     override fun getPosts() = listOf(

@@ -2,7 +2,7 @@ package com.juyeon.androidpractice.ui.search
 
 import androidx.lifecycle.ViewModel
 import com.juyeon.androidpractice.model.PostItem
-import com.juyeon.androidpractice.repository.MockSearchRepository
+import com.juyeon.androidpractice.repository.search.MockSearchRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 

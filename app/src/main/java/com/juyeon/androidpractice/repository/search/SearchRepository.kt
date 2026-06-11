@@ -1,4 +1,4 @@
-package com.juyeon.androidpractice.repository
+package com.juyeon.androidpractice.repository.search
 
 import com.juyeon.androidpractice.model.PostItem
 

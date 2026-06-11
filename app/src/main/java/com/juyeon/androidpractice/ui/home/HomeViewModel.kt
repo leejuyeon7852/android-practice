@@ -3,7 +3,7 @@ package com.juyeon.androidpractice.ui.home
 import androidx.lifecycle.ViewModel
 import com.juyeon.androidpractice.model.BannerItem
 import com.juyeon.androidpractice.model.CardItem
-import com.juyeon.androidpractice.repository.MockHomeRepository
+import com.juyeon.androidpractice.repository.home.MockHomeRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
