@@ -13,6 +13,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.juyeon.androidpractice.ui.alarm.AlarmScreen
+import com.juyeon.androidpractice.ui.auth.LoginScreen
+import com.juyeon.androidpractice.ui.auth.SignupScreen
 import com.juyeon.androidpractice.ui.theme.AndroidPracticeTheme
 import com.juyeon.androidpractice.ui.theme.BackgroundBase
 import com.juyeon.androidpractice.ui.component.BottomNavItem
@@ -29,25 +31,43 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             AndroidPracticeTheme {
+                var isLoggedIn by remember { mutableStateOf(false) }
+                var showSignup by remember { mutableStateOf(false) }
                 var currentRoute by remember { mutableStateOf(BottomNavItem.Home.route) }
 
-                Scaffold(
-                    containerColor = BackgroundBase,
-                    bottomBar = {
-                        BottomNavigationBar(
-                            currentRoute = currentRoute,
-                            onItemClick = { currentRoute = it.route }
-                        )
-                    }
-                ) { innerPadding ->
+                if (!isLoggedIn) {
                     GradientBackground {
-                        Box(modifier = Modifier.padding(innerPadding)){
-                            when(currentRoute){
-                                BottomNavItem.Home.route -> HomeScreen()
-                                BottomNavItem.Search.route -> SearchScreen()
-                                BottomNavItem.Write.route -> WriteScreen()
-                                BottomNavItem.Profile.route -> ProfileScreen()
-                                BottomNavItem.Alarm.route -> AlarmScreen()
+                        if (showSignup) {
+                            SignupScreen(
+                                onSignupSuccess = { showSignup = false },
+                                onNavigateToLogin = { showSignup = false }
+                            )
+                        } else {
+                            LoginScreen(
+                                onLoginSuccess = { isLoggedIn = true },
+                                onNavigateToSignup = { showSignup = true }
+                            )
+                        }
+                    }
+                } else {
+                    Scaffold(
+                        containerColor = BackgroundBase,
+                        bottomBar = {
+                            BottomNavigationBar(
+                                currentRoute = currentRoute,
+                                onItemClick = { currentRoute = it.route }
+                            )
+                        }
+                    ) { innerPadding ->
+                        GradientBackground {
+                            Box(modifier = Modifier.padding(innerPadding)) {
+                                when (currentRoute) {
+                                    BottomNavItem.Home.route -> HomeScreen()
+                                    BottomNavItem.Search.route -> SearchScreen()
+                                    BottomNavItem.Write.route -> WriteScreen()
+                                    BottomNavItem.Profile.route -> ProfileScreen()
+                                    BottomNavItem.Alarm.route -> AlarmScreen()
+                                }
                             }
                         }
                     }
