@@ -18,7 +18,7 @@ import androidx.compose.ui.unit.sp
 import com.juyeon.androidpractice.ui.theme.GradientStart
 
 @Composable
-fun ProfileScreen() {
+fun ProfileScreen(nickname: String = "닉네임") {
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("쓴 글", "댓글", "스크랩", "좋아요")
 
@@ -56,7 +56,7 @@ fun ProfileScreen() {
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            Text(text = "닉네임", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Text(text = nickname, fontWeight = FontWeight.Bold, fontSize = 18.sp)
 
             Spacer(modifier = Modifier.height(16.dp))
 

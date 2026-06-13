@@ -31,7 +31,13 @@ import com.juyeon.androidpractice.ui.theme.GradientStart
 import java.io.File
 
 @Composable
-fun WriteScreen(viewModel: WriteViewModel = viewModel()) {
+fun WriteScreen(
+    authorId: Int,
+    authorNickname: String,
+    onSaved: (postId: Int) -> Unit,
+    onCancel: () -> Unit,
+    viewModel: WriteViewModel = viewModel()
+) {
     val context = LocalContext.current
     var showImagePickerDialog by remember { mutableStateOf(false) }
     var cameraImageUri by remember { mutableStateOf<Uri?>(null) }
@@ -47,7 +53,7 @@ fun WriteScreen(viewModel: WriteViewModel = viewModel()) {
     if (viewModel.showCancelDialog) {
         CancelDialog(
             onDismiss = { viewModel.onDismissDialog() },
-            onConfirm = { viewModel.onConfirmCancel() }
+            onConfirm = { viewModel.onConfirmCancel(onCancel) }
         )
     }
 
@@ -150,7 +156,7 @@ fun WriteScreen(viewModel: WriteViewModel = viewModel()) {
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             OutlinedButton(
-                onClick = { viewModel.onCancelClick() },
+                onClick = { viewModel.onCancelClick(); onCancel() },
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.weight(1f)
             ) {
@@ -158,7 +164,7 @@ fun WriteScreen(viewModel: WriteViewModel = viewModel()) {
             }
 
             Button(
-                onClick = { viewModel.onSave() },
+                onClick = { viewModel.onSave(authorId, authorNickname, onSaved) },
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = GradientStart),
                 modifier = Modifier.weight(1f)
@@ -252,5 +258,5 @@ private fun CancelDialog(
 @Preview(showBackground = true, showSystemUi = true)
 @Composable
 private fun WriteScreenPreview() {
-    WriteScreen()
+    WriteScreen(authorId = 0, authorNickname = "미리보기", onSaved = {}, onCancel = {})
 }

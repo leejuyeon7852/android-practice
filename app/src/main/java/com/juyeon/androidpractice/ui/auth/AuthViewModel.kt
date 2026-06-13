@@ -1,12 +1,21 @@
 package com.juyeon.androidpractice.ui.auth
 
+import android.app.Application
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.lifecycle.ViewModel
-import com.juyeon.androidpractice.model.User
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import com.juyeon.androidpractice.data.db.AppDatabase
+import com.juyeon.androidpractice.data.db.entity.User
+import com.juyeon.androidpractice.data.repository.auth.AuthRepositoryImpl
+import kotlinx.coroutines.launch
 
-class AuthViewModel : ViewModel() {
+class AuthViewModel(application: Application) : AndroidViewModel(application) {
+
+    private val repository = AuthRepositoryImpl(
+        AppDatabase.getInstance(application).userDao()
+    )
 
     var currentUser by mutableStateOf<User?>(null)
         private set
@@ -17,21 +26,20 @@ class AuthViewModel : ViewModel() {
     var signupError by mutableStateOf<String?>(null)
         private set
 
-    // Mock 저장소 — 나중에 RoomDB 또는 Remote Repository로 교체
-    private val mockUsers = mutableListOf<User>()
-
     fun login(id: String, password: String, onSuccess: () -> Unit) {
         if (id.isBlank() || password.isBlank()) {
             loginError = "아이디와 비밀번호를 입력해주세요"
             return
         }
-        val found = mockUsers.find { it.userId == id && it.password == password }
-        if (found != null) {
-            currentUser = found
-            loginError = null
-            onSuccess()
-        } else {
-            loginError = "아이디 또는 비밀번호가 올바르지 않습니다"
+        viewModelScope.launch {
+            val user = repository.login(id, password)
+            if (user != null) {
+                currentUser = user
+                loginError = null
+                onSuccess()
+            } else {
+                loginError = "아이디 또는 비밀번호가 올바르지 않습니다"
+            }
         }
     }
 
@@ -56,13 +64,16 @@ class AuthViewModel : ViewModel() {
             password != passwordConfirm -> {
                 signupError = "비밀번호가 일치하지 않습니다"
             }
-            mockUsers.any { it.userId == user.userId } -> {
-                signupError = "이미 사용 중인 아이디입니다"
-            }
             else -> {
-                mockUsers.add(user)
-                signupError = null
-                onSuccess()
+                viewModelScope.launch {
+                    val success = repository.signup(user)
+                    if (success) {
+                        signupError = null
+                        onSuccess()
+                    } else {
+                        signupError = "이미 사용 중인 아이디입니다"
+                    }
+                }
             }
         }
     }
