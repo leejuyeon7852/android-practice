@@ -105,10 +105,8 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun updateUser(user: User) {
-        viewModelScope.launch {
-            repository.updateUser(user)
-            currentUser = user
-        }
+        currentUser = user  // 즉시 UI 반영
+        viewModelScope.launch { repository.updateUser(user) }
     }
 
     fun clearLoginError() { loginError = null }

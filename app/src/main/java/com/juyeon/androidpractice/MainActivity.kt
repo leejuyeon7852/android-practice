@@ -29,6 +29,8 @@ import com.juyeon.androidpractice.ui.post.PostDetailScreen
 import com.juyeon.androidpractice.ui.profile.ProfileScreen
 import com.juyeon.androidpractice.ui.search.SearchScreen
 import com.juyeon.androidpractice.ui.write.WriteScreen
+import com.juyeon.androidpractice.data.db.entity.Post
+import com.juyeon.androidpractice.ui.profile.UserProfileScreen
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -42,6 +44,8 @@ class MainActivity : ComponentActivity() {
                 var showSignup by remember { mutableStateOf(false) }
                 var currentRoute by remember { mutableStateOf(BottomNavItem.Home.route) }
                 var selectedPostId by remember { mutableStateOf<Int?>(null) }
+                var editPost by remember { mutableStateOf<Post?>(null) }
+                var selectedUserId by remember { mutableStateOf<Int?>(null) }
 
                 val currentUser = authViewModel.currentUser
                 val unreadCount by alarmViewModel.unreadCount.collectAsStateWithLifecycle()
@@ -67,12 +71,36 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                     }
+                } else if (selectedUserId != null && selectedUserId != currentUser.id) {
+                    GradientBackground {
+                        UserProfileScreen(
+                            targetUserId = selectedUserId!!,
+                            currentUser = currentUser,
+                            onBack = { selectedUserId = null },
+                            onPostClick = { selectedPostId = it }
+                        )
+                    }
+                } else if (editPost != null) {
+                    GradientBackground {
+                        WriteScreen(
+                            authorId = currentUser.id,
+                            authorNickname = currentUser.nickname,
+                            editPost = editPost,
+                            onSaved = { postId ->
+                                editPost = null
+                                selectedPostId = postId
+                            },
+                            onCancel = { editPost = null }
+                        )
+                    }
                 } else if (selectedPostId != null) {
                     GradientBackground {
                         PostDetailScreen(
                             postId = selectedPostId!!,
                             currentUser = currentUser,
-                            onBack = { selectedPostId = null }
+                            onBack = { selectedPostId = null },
+                            onEdit = { post -> selectedPostId = null; editPost = post },
+                            onUserClick = { selectedUserId = it }
                         )
                     }
                 } else {
@@ -89,9 +117,14 @@ class MainActivity : ComponentActivity() {
                         GradientBackground {
                             Box(modifier = Modifier.padding(innerPadding)) {
                                 when (currentRoute) {
-                                    BottomNavItem.Home.route -> HomeScreen()
+                                    BottomNavItem.Home.route -> HomeScreen(
+                                        currentUserId = currentUser.id,
+                                        onPostClick = { selectedPostId = it },
+                                        onUserClick = { selectedUserId = it }
+                                    )
                                     BottomNavItem.Search.route -> SearchScreen(
-                                        onPostClick = { selectedPostId = it }
+                                        onPostClick = { selectedPostId = it },
+                                        onUserClick = { selectedUserId = it }
                                     )
                                     BottomNavItem.Write.route -> WriteScreen(
                                         authorId = currentUser.id,
@@ -103,7 +136,8 @@ class MainActivity : ComponentActivity() {
                                         onCancel = { currentRoute = BottomNavItem.Home.route }
                                     )
                                     BottomNavItem.Alarm.route -> com.juyeon.androidpractice.ui.alarm.AlarmScreen(
-                                        viewModel = alarmViewModel
+                                        viewModel = alarmViewModel,
+                                        onPostClick = { selectedPostId = it }
                                     )
                                     BottomNavItem.Profile.route -> ProfileScreen(
                                         currentUser = currentUser,

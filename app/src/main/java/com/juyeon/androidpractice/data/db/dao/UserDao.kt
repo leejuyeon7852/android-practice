@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Update
 import com.juyeon.androidpractice.data.db.entity.User
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface UserDao {
@@ -25,4 +26,7 @@ interface UserDao {
 
     @Query("SELECT * FROM users WHERE id IN (:ids)")
     suspend fun getUsersByIds(ids: List<Int>): List<User>
+
+    @Query("SELECT * FROM users WHERE nickname LIKE '%' || :query || '%'")
+    fun searchByNickname(query: String): Flow<List<User>>
 }

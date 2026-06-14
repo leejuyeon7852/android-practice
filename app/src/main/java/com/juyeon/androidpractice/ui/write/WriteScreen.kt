@@ -36,15 +36,28 @@ fun WriteScreen(
     authorNickname: String,
     onSaved: (postId: Int) -> Unit,
     onCancel: () -> Unit,
+    editPost: com.juyeon.androidpractice.data.db.entity.Post? = null,
     viewModel: WriteViewModel = viewModel()
 ) {
+    LaunchedEffect(editPost?.id) {
+        if (editPost != null) viewModel.initForEdit(editPost)
+    }
     val context = LocalContext.current
     var showImagePickerDialog by remember { mutableStateOf(false) }
     var cameraImageUri by remember { mutableStateOf<Uri?>(null) }
 
     val galleryLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
-    ) { uri -> viewModel.onImageSelected(uri) }
+    ) { uri ->
+        if (uri != null) {
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            } catch (_: Exception) {}
+        }
+        viewModel.onImageSelected(uri)
+    }
 
     val cameraLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.TakePicture()
@@ -129,10 +142,10 @@ fun WriteScreen(
                 AsyncImage(
                     model = uri,
                     contentDescription = null,
-                    contentScale = ContentScale.Crop,
+                    contentScale = ContentScale.Fit,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(200.dp)
+                        .height(140.dp)
                         .clip(RoundedCornerShape(12.dp))
                         .border(1.dp, Color.LightGray, RoundedCornerShape(12.dp))
                 )
@@ -156,7 +169,10 @@ fun WriteScreen(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             OutlinedButton(
-                onClick = { viewModel.onCancelClick(); onCancel() },
+                onClick = {
+                    if (viewModel.isEditMode) viewModel.onConfirmCancel(onCancel)
+                    else viewModel.onCancelClick(onCancel)
+                },
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.weight(1f)
             ) {
@@ -164,12 +180,15 @@ fun WriteScreen(
             }
 
             Button(
-                onClick = { viewModel.onSave(authorId, authorNickname, onSaved) },
+                onClick = {
+                    if (viewModel.isEditMode) viewModel.onUpdate(onSaved)
+                    else viewModel.onSave(authorId, authorNickname, onSaved)
+                },
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = GradientStart),
                 modifier = Modifier.weight(1f)
             ) {
-                Text("저장", color = Color.White)
+                Text(if (viewModel.isEditMode) "수정 완료" else "저장", color = Color.White)
             }
         }
     }

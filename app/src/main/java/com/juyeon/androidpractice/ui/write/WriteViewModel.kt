@@ -26,14 +26,30 @@ class WriteViewModel(application: Application) : AndroidViewModel(application) {
         private set
     var showCancelDialog by mutableStateOf(false)
         private set
+    var isEditMode by mutableStateOf(false)
+        private set
+
+    private var editingPost: Post? = null
+
+    fun initForEdit(post: Post) {
+        editingPost = post
+        title = post.title
+        body = post.body
+        imageUri = post.imageUri?.let { Uri.parse(it) }
+        isEditMode = true
+    }
 
     fun onTitleChange(value: String) { title = value }
     fun onBodyChange(value: String) { body = value }
     fun onImageSelected(uri: Uri?) { imageUri = uri }
-    fun onCancelClick() { if (title.isNotBlank() || body.isNotBlank()) showCancelDialog = true }
+    fun onCancelClick(onCancel: () -> Unit) {
+        if (title.isNotBlank() || body.isNotBlank()) showCancelDialog = true
+        else { resetState(); onCancel() }
+    }
     fun onDismissDialog() { showCancelDialog = false }
     fun onConfirmCancel(onDone: () -> Unit) {
-        title = ""; body = ""; imageUri = null; showCancelDialog = false
+        resetState()
+        showCancelDialog = false
         onDone()
     }
 
@@ -51,8 +67,27 @@ class WriteViewModel(application: Application) : AndroidViewModel(application) {
                     createdAt = now,
                 )
             )
-            title = ""; body = ""; imageUri = null
+            resetState()
             onSaved(postId.toInt())
         }
+    }
+
+    fun onUpdate(onDone: (postId: Int) -> Unit) {
+        val original = editingPost ?: return
+        if (title.isBlank()) return
+        viewModelScope.launch {
+            val updated = original.copy(
+                title = title,
+                body = body,
+                imageUri = imageUri?.toString()
+            )
+            repository.updatePost(updated)
+            resetState()
+            onDone(original.id)
+        }
+    }
+
+    private fun resetState() {
+        title = ""; body = ""; imageUri = null; isEditMode = false; editingPost = null
     }
 }

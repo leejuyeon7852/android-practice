@@ -1,9 +1,11 @@
 package com.juyeon.androidpractice.ui.search
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
@@ -17,26 +19,29 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.juyeon.androidpractice.data.db.entity.Post
+import com.juyeon.androidpractice.data.db.entity.User
+import com.juyeon.androidpractice.ui.theme.GradientStart
 
 @Composable
 fun SearchScreen(
     onPostClick: (postId: Int) -> Unit = {},
+    onUserClick: (userId: Int) -> Unit = {},
     viewModel: SearchViewModel = viewModel()
 ) {
     val posts by viewModel.posts.collectAsStateWithLifecycle()
+    val users by viewModel.users.collectAsStateWithLifecycle()
 
     Column(modifier = Modifier.fillMaxSize()) {
         OutlinedTextField(
             value = viewModel.searchQuery,
             onValueChange = viewModel::onSearchChange,
-            placeholder = { Text("게시글 검색...") },
+            placeholder = { Text(if (viewModel.selectedTab == 0) "게시글 검색..." else "닉네임 검색...") },
             leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = Color.Gray) },
             singleLine = true,
             shape = RoundedCornerShape(12.dp),
@@ -50,15 +55,85 @@ fun SearchScreen(
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 12.dp)
         )
-        LazyColumn(
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-            modifier = Modifier.fillMaxSize()
+
+        TabRow(
+            selectedTabIndex = viewModel.selectedTab,
+            containerColor = Color.Transparent,
+            contentColor = GradientStart
         ) {
-            items(posts) { post ->
-                PostCard(post = post, onClick = { onPostClick(post.id) })
+            Tab(
+                selected = viewModel.selectedTab == 0,
+                onClick = { viewModel.onTabSelected(0) },
+                text = { Text("게시글") }
+            )
+            Tab(
+                selected = viewModel.selectedTab == 1,
+                onClick = { viewModel.onTabSelected(1) },
+                text = { Text("유저") }
+            )
+        }
+
+        if (viewModel.selectedTab == 0) {
+            LazyColumn(
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                items(posts) { post ->
+                    PostCard(post = post, onClick = { onPostClick(post.id) })
+                }
+            }
+        } else {
+            LazyColumn(
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                items(users) { user ->
+                    UserCard(user = user, onClick = { onUserClick(user.id) })
+                }
+                if (users.isEmpty() && viewModel.searchQuery.isNotBlank()) {
+                    item {
+                        Box(
+                            modifier = Modifier.fillMaxWidth().padding(top = 40.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("검색 결과가 없습니다.", color = Color.Gray)
+                        }
+                    }
+                }
             }
         }
+    }
+}
+
+@Composable
+fun UserCard(user: User, onClick: () -> Unit = {}) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (user.profileImageUri != null) {
+            AsyncImage(
+                model = user.profileImageUri,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.size(44.dp).clip(CircleShape)
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(Color.LightGray),
+                contentAlignment = Alignment.Center
+            ) {}
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(text = user.nickname, fontWeight = FontWeight.Medium, fontSize = 15.sp)
     }
 }
 
@@ -105,41 +180,12 @@ fun PostCard(post: Post, onClick: () -> Unit = {}) {
                 AsyncImage(
                     model = post.imageUri,
                     contentDescription = null,
-                    contentScale = ContentScale.Crop,
+                    contentScale = ContentScale.Fit,
                     modifier = Modifier
                         .size(56.dp)
                         .clip(RoundedCornerShape(8.dp))
                 )
             }
-        }
-    }
-}
-
-@Preview(showSystemUi = true, showBackground = true)
-@Composable
-fun SearchScreenPreview() {
-    val samplePosts = listOf(
-        Post(id = 1, authorId = 1, authorNickname = "주연", title = "오늘 날씨가 정말 좋네요", body = "산책하기 딱 좋은 날입니다.", imageUri = null, createdAt = "2026-06-13 10:00"),
-        Post(id = 2, authorId = 2, authorNickname = "민수", title = "제목이 조금 긴 게시글은 어떻게 보일까요 한번 확인해봅시다", body = "내용", imageUri = null, createdAt = "2026-06-13 11:30"),
-        Post(id = 3, authorId = 3, authorNickname = "하늘", title = "짧은 제목", body = "내용", imageUri = null, createdAt = "2026-06-13 12:00")
-    )
-
-    Column(modifier = Modifier.fillMaxSize()) {
-        OutlinedTextField(
-            value = "",
-            onValueChange = {},
-            placeholder = { Text("게시글 검색...") },
-            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-            singleLine = true,
-            shape = RoundedCornerShape(12.dp),
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)
-        )
-        LazyColumn(
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-            modifier = Modifier.fillMaxSize()
-        ) {
-            items(samplePosts) { post -> PostCard(post = post) }
         }
     }
 }

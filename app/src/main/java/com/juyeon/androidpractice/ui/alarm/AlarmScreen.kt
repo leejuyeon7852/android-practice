@@ -35,7 +35,10 @@ import com.juyeon.androidpractice.model.NotificationType
 import com.juyeon.androidpractice.ui.theme.GradientStart
 
 @Composable
-fun AlarmScreen(viewModel: AlarmViewModel = viewModel()) {
+fun AlarmScreen(
+    onPostClick: (postId: Int) -> Unit = {},
+    viewModel: AlarmViewModel = viewModel()
+) {
     val notifications by viewModel.notifications.collectAsStateWithLifecycle()
     var selectedHour by remember { mutableIntStateOf(8) }
     var selectedMinute by remember { mutableIntStateOf(0) }
@@ -70,7 +73,10 @@ fun AlarmScreen(viewModel: AlarmViewModel = viewModel()) {
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(notifications) { item ->
-                NotificationCard(item, onClick = { if (!item.isRead) viewModel.markAsRead(item.id) })
+                NotificationCard(item, onClick = {
+                    if (!item.isRead) viewModel.markAsRead(item.id)
+                    if (item.postId != -1) onPostClick(item.postId)
+                })
             }
         }
 

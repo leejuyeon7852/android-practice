@@ -15,5 +15,7 @@ class PostRepositoryImpl(private val postDao: PostDao) : PostRepository {
 
     override suspend fun savePost(post: Post): Long = postDao.insert(post)
 
+    override suspend fun updatePost(post: Post) = postDao.update(post)
+
     override suspend fun deletePost(postId: Int) = postDao.deletePost(postId)
 }

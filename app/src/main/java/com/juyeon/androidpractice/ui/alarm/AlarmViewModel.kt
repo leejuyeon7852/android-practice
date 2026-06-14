@@ -46,7 +46,8 @@ class AlarmViewModel(application: Application) : AndroidViewModel(application) {
                         },
                         message = n.message,
                         time = n.createdAt,
-                        isRead = n.isRead
+                        isRead = n.isRead,
+                        postId = n.postId
                     )
                 }
             }

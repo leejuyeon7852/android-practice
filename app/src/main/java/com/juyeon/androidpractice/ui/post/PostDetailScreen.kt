@@ -13,9 +13,11 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -40,6 +42,8 @@ fun PostDetailScreen(
     postId: Int,
     currentUser: User,
     onBack: () -> Unit,
+    onEdit: (com.juyeon.androidpractice.data.db.entity.Post) -> Unit = {},
+    onUserClick: (userId: Int) -> Unit = {},
     viewModel: PostDetailViewModel = viewModel()
 ) {
     LaunchedEffect(postId) { viewModel.init(postId, currentUser.id) }
@@ -48,7 +52,26 @@ fun PostDetailScreen(
     val comments by viewModel.comments.collectAsStateWithLifecycle()
     val replies by viewModel.replies.collectAsStateWithLifecycle()
     var showCommentSheet by remember { mutableStateOf(false) }
+    var showPostMenu by remember { mutableStateOf(false) }
+    var showDeletePostDialog by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+
+    if (showDeletePostDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeletePostDialog = false },
+            title = { Text("게시글 삭제") },
+            text = { Text("정말 삭제하시겠습니까?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDeletePostDialog = false
+                    viewModel.deletePost { onBack() }
+                }) { Text("삭제", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeletePostDialog = false }) { Text("취소") }
+            }
+        )
+    }
 
     // 댓글 목록 바뀔 때 좋아요 상태 갱신
     val allCommentIds = (comments + replies.values.flatten()).map { it.id }
@@ -63,6 +86,28 @@ fun PostDetailScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "뒤로")
+                    }
+                },
+                actions = {
+                    if (post != null && post.authorId == currentUser.id) {
+                        Box {
+                            IconButton(onClick = { showPostMenu = true }) {
+                                Icon(Icons.Filled.MoreVert, contentDescription = "더보기")
+                            }
+                            DropdownMenu(
+                                expanded = showPostMenu,
+                                onDismissRequest = { showPostMenu = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("수정") },
+                                    onClick = { showPostMenu = false; onEdit(post) }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("삭제", color = MaterialTheme.colorScheme.error) },
+                                    onClick = { showPostMenu = false; showDeletePostDialog = true }
+                                )
+                            }
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
@@ -90,9 +135,28 @@ fun PostDetailScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Box(modifier = Modifier.size(28.dp).clip(CircleShape).background(Color.LightGray))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = post.authorNickname, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.clickable(
+                                onClick = { onUserClick(post.authorId) },
+                                indication = null,
+                                interactionSource = remember { MutableInteractionSource() }
+                            )
+                        ) {
+                            val authorImg = viewModel.userProfileMap[post.authorId]
+                            if (authorImg != null) {
+                                AsyncImage(
+                                    model = authorImg,
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.size(28.dp).clip(CircleShape)
+                                )
+                            } else {
+                                Box(modifier = Modifier.size(28.dp).clip(CircleShape).background(Color.LightGray))
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(text = post.authorNickname, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        }
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(text = post.createdAt, fontSize = 12.sp, color = Color.Gray)
                         if (post.authorId != currentUser.id) {
@@ -120,10 +184,10 @@ fun PostDetailScreen(
                         AsyncImage(
                             model = post.imageUri,
                             contentDescription = null,
-                            contentScale = ContentScale.Crop,
+                            contentScale = ContentScale.Fit,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(220.dp)
+                                .height(280.dp)
                                 .clip(RoundedCornerShape(12.dp))
                         )
                         Spacer(modifier = Modifier.height(16.dp))
@@ -187,7 +251,10 @@ fun PostDetailScreen(
                 onLikeComment = { viewModel.toggleCommentLike(it, currentUser.id) },
                 onReplyTo = { viewModel.setReplyTo(it) },
                 onCancelReply = { viewModel.setReplyTo(null) },
-                onFollowUser = { targetId -> viewModel.toggleFollowUser(targetId, currentUser.id, currentUser.nickname) }
+                onFollowUser = { targetId -> viewModel.toggleFollowUser(targetId, currentUser.id, currentUser.nickname) },
+                onDeleteComment = { commentId -> viewModel.deleteComment(commentId) },
+                onUserClick = onUserClick,
+                userProfileMap = viewModel.userProfileMap
             )
         }
     }
@@ -209,6 +276,9 @@ private fun CommentSheetContent(
     onReplyTo: (Comment) -> Unit,
     onCancelReply: () -> Unit,
     onFollowUser: (Int) -> Unit,
+    onDeleteComment: (Int) -> Unit = {},
+    onUserClick: (Int) -> Unit = {},
+    userProfileMap: Map<Int, String?> = emptyMap(),
 ) {
     Column(
         modifier = Modifier
@@ -231,6 +301,7 @@ private fun CommentSheetContent(
             items(comments) { comment ->
                 CommentItem(
                     comment = comment,
+                    authorImageUri = userProfileMap[comment.authorId],
                     likeCount = commentLikeCounts[comment.id] ?: 0,
                     isLiked = commentLikedByMe[comment.id] == true,
                     isFollowing = followingUserIds.contains(comment.authorId),
@@ -238,11 +309,15 @@ private fun CommentSheetContent(
                     onLike = { onLikeComment(comment.id) },
                     onReply = { onReplyTo(comment) },
                     onFollow = { onFollowUser(comment.authorId) },
-                    isReply = false
+                    isReply = false,
+                    showDeleteButton = comment.authorId == currentUserId,
+                    onDelete = { onDeleteComment(comment.id) },
+                    onUserClick = { onUserClick(comment.authorId) }
                 )
                 replies[comment.id]?.forEach { reply ->
                     CommentItem(
                         comment = reply,
+                        authorImageUri = userProfileMap[reply.authorId],
                         likeCount = commentLikeCounts[reply.id] ?: 0,
                         isLiked = commentLikedByMe[reply.id] == true,
                         isFollowing = followingUserIds.contains(reply.authorId),
@@ -250,7 +325,10 @@ private fun CommentSheetContent(
                         onLike = { onLikeComment(reply.id) },
                         onReply = { onReplyTo(comment) },
                         onFollow = { onFollowUser(reply.authorId) },
-                        isReply = true
+                        isReply = true,
+                        showDeleteButton = reply.authorId == currentUserId,
+                        onDelete = { onDeleteComment(reply.id) },
+                        onUserClick = { onUserClick(reply.authorId) }
                     )
                 }
             }
@@ -307,6 +385,7 @@ private fun CommentSheetContent(
 @Composable
 private fun CommentItem(
     comment: Comment,
+    authorImageUri: String? = null,
     likeCount: Int,
     isLiked: Boolean,
     isFollowing: Boolean,
@@ -315,17 +394,38 @@ private fun CommentItem(
     onReply: () -> Unit,
     onFollow: () -> Unit,
     isReply: Boolean,
+    showDeleteButton: Boolean = false,
+    onDelete: () -> Unit = {},
+    onUserClick: () -> Unit = {},
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(start = if (isReply) 48.dp else 16.dp, end = 16.dp, top = 10.dp, bottom = 4.dp)
     ) {
-        Box(modifier = Modifier.size(32.dp).clip(CircleShape).background(Color.LightGray))
+        if (authorImageUri != null) {
+            AsyncImage(
+                model = authorImageUri,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.size(32.dp).clip(CircleShape)
+                    .clickable(onClick = onUserClick, indication = null, interactionSource = remember { MutableInteractionSource() })
+            )
+        } else {
+            Box(
+                modifier = Modifier.size(32.dp).clip(CircleShape).background(Color.LightGray)
+                    .clickable(onClick = onUserClick, indication = null, interactionSource = remember { MutableInteractionSource() })
+            )
+        }
         Spacer(modifier = Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = comment.authorNickname, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Text(
+                    text = comment.authorNickname,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp,
+                    modifier = Modifier.clickable(onClick = onUserClick, indication = null, interactionSource = remember { MutableInteractionSource() })
+                )
                 if (showFollowButton) {
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
@@ -362,6 +462,16 @@ private fun CommentItem(
                 )
             }
             if (likeCount > 0) Text(text = "$likeCount", fontSize = 10.sp, color = Color.Gray)
+            if (showDeleteButton) {
+                IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
+                    Icon(
+                        Icons.Filled.Close,
+                        contentDescription = "삭제",
+                        tint = Color.LightGray,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+            }
         }
     }
 }

@@ -8,5 +8,6 @@ interface PostRepository {
     fun getPostsByAuthor(authorId: Int): Flow<List<Post>>
     suspend fun getPostById(postId: Int): Post?
     suspend fun savePost(post: Post): Long
+    suspend fun updatePost(post: Post)
     suspend fun deletePost(postId: Int)
 }

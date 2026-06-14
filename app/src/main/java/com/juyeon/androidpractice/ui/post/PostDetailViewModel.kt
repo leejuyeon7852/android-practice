@@ -35,6 +35,11 @@ class PostDetailViewModel(application: Application) : AndroidViewModel(applicati
 
     private val _postId = MutableStateFlow(-1)
 
+    val postFlow: StateFlow<Post?> = _postId
+        .filter { it != -1 }
+        .flatMapLatest { postDao.getPostByIdFlow(it) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
     var post by mutableStateOf<Post?>(null)
         private set
     var isLiked by mutableStateOf(false)
@@ -67,6 +72,8 @@ class PostDetailViewModel(application: Application) : AndroidViewModel(applicati
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
+    var userProfileMap by mutableStateOf<Map<Int, String?>>(emptyMap())
+        private set
     var commentLikeCounts by mutableStateOf<Map<Int, Int>>(emptyMap())
         private set
     var commentLikedByMe by mutableStateOf<Map<Int, Boolean>>(emptyMap())
@@ -77,18 +84,25 @@ class PostDetailViewModel(application: Application) : AndroidViewModel(applicati
         private set
 
     fun init(postId: Int, currentUserId: Int) {
-        if (_postId.value == postId) return
         _currentUserId = currentUserId
+        if (_postId.value == postId) return
         _postId.value = postId
-        viewModelScope.launch {
-            post = postDao.getPostById(postId)
-            isLiked = likeDao.isLiked(currentUserId, postId)
-            isScrapped = scrapDao.isScrapped(currentUserId, postId)
-            post?.let { p ->
+        // postFlow 구독 → post 상태 자동 갱신
+        postFlow.onEach { p ->
+            post = p
+            if (p != null) {
+                isLiked = likeDao.isLiked(currentUserId, p.id)
+                isScrapped = scrapDao.isScrapped(currentUserId, p.id)
                 if (p.authorId != currentUserId) {
                     isFollowing = followDao.isFollowing(currentUserId, p.authorId)
                 }
+                val users = db.userDao().getUsersByIds(listOf(p.authorId))
+                userProfileMap = userProfileMap + users.associate { it.id to it.profileImageUri }
             }
+        }.launchIn(viewModelScope)
+        viewModelScope.launch {
+            isLiked = likeDao.isLiked(currentUserId, postId)
+            isScrapped = scrapDao.isScrapped(currentUserId, postId)
         }
         likeDao.getLikeCount(postId)
             .onEach { likeCount = it }
@@ -101,6 +115,16 @@ class PostDetailViewModel(application: Application) : AndroidViewModel(applicati
             post?.let { p ->
                 followDao.getFollowerCount(p.authorId)
                     .collect { followerCount = it }
+            }
+        }
+        // 댓글 작성자 프로필 이미지 구독 (기존 map에 merge)
+        viewModelScope.launch {
+            comments.collect { commentList ->
+                val ids = commentList.map { it.authorId }.distinct()
+                if (ids.isNotEmpty()) {
+                    val users = db.userDao().getUsersByIds(ids)
+                    userProfileMap = userProfileMap + users.associate { it.id to it.profileImageUri }
+                }
             }
         }
     }
@@ -280,6 +304,17 @@ class PostDetailViewModel(application: Application) : AndroidViewModel(applicati
             commentInput = ""
             replyToComment = null
         }
+    }
+
+    fun deletePost(onDeleted: () -> Unit) {
+        viewModelScope.launch {
+            postDao.deletePost(_postId.value)
+            onDeleted()
+        }
+    }
+
+    fun deleteComment(commentId: Int) {
+        viewModelScope.launch { commentDao.deleteComment(commentId) }
     }
 
     private fun now() = LocalDateTime.now()

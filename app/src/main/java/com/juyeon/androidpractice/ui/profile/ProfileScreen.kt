@@ -60,9 +60,19 @@ fun ProfileScreen(
     var editNickname by remember(currentUser.nickname) { mutableStateOf(currentUser.nickname) }
     var editImageUri by remember(currentUser.profileImageUri) { mutableStateOf(currentUser.profileImageUri) }
 
+    val context = androidx.compose.ui.platform.LocalContext.current
     val imagePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
-    ) { uri -> uri?.let { editImageUri = it.toString() } }
+    ) { uri ->
+        uri?.let {
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    it, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            } catch (_: Exception) {}
+            editImageUri = it.toString()
+        }
+    }
 
     val tabs = listOf("쓴 글", "댓글", "스크랩", "좋아요")
 
@@ -156,7 +166,8 @@ fun ProfileScreen(
                             nickname = editNickname.trim().ifBlank { currentUser.nickname },
                             profileImageUri = editImageUri
                         )
-                        viewModel.updateProfile(updated) { onUserUpdated(it) }
+                        onUserUpdated(updated)   // 즉시 UI 반영
+                        viewModel.updateProfile(updated) {}  // DB 저장
                         showEditDialog = false
                     }
                 ) { Text("저장") }

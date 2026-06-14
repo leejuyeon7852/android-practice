@@ -2,77 +2,86 @@ package com.juyeon.androidpractice.ui.home
 
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
-import com.juyeon.androidpractice.model.BannerItem
-import com.juyeon.androidpractice.model.CardItem
+import com.juyeon.androidpractice.data.db.entity.Post
 import com.juyeon.androidpractice.ui.theme.GradientStart
-import androidx.compose.ui.graphics.Canvas
 import androidx.compose.foundation.Canvas
 
 @Composable
-fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
-    val banners by viewModel.banners.collectAsStateWithLifecycle()
-    val cards by viewModel.cards.collectAsStateWithLifecycle()
+fun HomeScreen(
+    currentUserId: Int = -1,
+    onPostClick: (postId: Int) -> Unit = {},
+    onUserClick: (userId: Int) -> Unit = {},
+    viewModel: HomeViewModel = viewModel()
+) {
+    LaunchedEffect(currentUserId) {
+        if (currentUserId != -1) viewModel.setCurrentUser(currentUserId)
+    }
+
+    val posts by viewModel.followingPosts.collectAsStateWithLifecycle()
     var expanded by remember { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.padding(top = 48.dp, bottom = 16.dp)
+        if (posts.isEmpty()) {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                items(banners) { banner ->
-                    BannerCard(banner)
-                }
+                Text("팔로잉한 유저의 게시글이 없습니다.", color = Color.Gray, fontSize = 15.sp)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("다른 유저를 팔로우해보세요!", color = Color.LightGray, fontSize = 13.sp)
             }
-
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        } else {
+            LazyColumn(
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 80.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxSize()
             ) {
-                items(cards) { card ->
-                    GridCard(card)
+                item {
+                    Text(
+                        text = "팔로잉 피드",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 20.sp,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
+                }
+                items(posts, key = { it.id }) { post ->
+                    FeedPostCard(
+                        post = post,
+                        authorImageUri = viewModel.authorProfiles[post.authorId],
+                        onClick = { onPostClick(post.id) },
+                        onUserClick = { onUserClick(post.authorId) }
+                    )
                 }
             }
         }
-
-        // 리플 버튼
-        RippleButton(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(24.dp)
-        )
 
         // 펼쳐지는 FAB (우측 하단)
         ExpandableFab(
@@ -86,70 +95,62 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
 }
 
 @Composable
-private fun RippleButton(modifier: Modifier = Modifier) {
-    var isActive by remember { mutableStateOf(false) }
-    val infiniteTransition = rememberInfiniteTransition(label = "ripple")
-
-    val scale1 by infiniteTransition.animateFloat(
-        initialValue = 0.6f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1200, easing = EaseOut),
-            repeatMode = RepeatMode.Restart,
-            initialStartOffset = StartOffset(0)
-        ), label = "scale1"
-    )
-    val scale2 by infiniteTransition.animateFloat(
-        initialValue = 0.6f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1200, easing = EaseOut),
-            repeatMode = RepeatMode.Restart,
-            initialStartOffset = StartOffset(400)
-        ), label = "scale2"
-    )
-    val scale3 by infiniteTransition.animateFloat(
-        initialValue = 0.6f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1200, easing = EaseOut),
-            repeatMode = RepeatMode.Restart,
-            initialStartOffset = StartOffset(800)
-        ), label = "scale3"
-    )
-
-    Box(
-        modifier = modifier.size(100.dp),
-        contentAlignment = Alignment.Center
+private fun FeedPostCard(post: Post, authorImageUri: String? = null, onClick: () -> Unit, onUserClick: () -> Unit = {}) {
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
     ) {
-        if (isActive) {
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val maxRadius = size.minDimension / 2f
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(Color(0xFFFF5252), Color(0xFFFF1744))
-                    ),
-                    radius = maxRadius * scale1
-                )
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(Color(0xFFFFAB40), Color(0xFFFF6D00))
-                    ),
-                    radius = maxRadius * scale2 * 0.78f
-                )
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(Color(0xFFFFFF00), Color(0xFFFFD600))
-                    ),
-                    radius = maxRadius * scale3 * 0.55f
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.clickable(onClick = onUserClick)
+            ) {
+                if (authorImageUri != null) {
+                    AsyncImage(
+                        model = authorImageUri,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.size(32.dp).clip(CircleShape)
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(Color.LightGray)
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Column {
+                    Text(text = post.authorNickname, fontWeight = FontWeight.Medium, fontSize = 13.sp)
+                    Text(text = post.createdAt, fontSize = 11.sp, color = Color.Gray)
+                }
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(text = post.title, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            if (post.body.isNotBlank()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = post.body,
+                    fontSize = 14.sp,
+                    color = Color.DarkGray,
+                    maxLines = 2
                 )
             }
-        }
-
-        FloatingActionButton(
-            onClick = { isActive = !isActive },
-            containerColor = GradientStart,
-            shape = CircleShape,
-            modifier = Modifier.size(56.dp)
-        ) {
-            Icon(Icons.Filled.Favorite, contentDescription = null, tint = Color.White)
+            if (post.imageUri != null) {
+                Spacer(modifier = Modifier.height(10.dp))
+                AsyncImage(
+                    model = post.imageUri,
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(240.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                )
+            }
         }
     }
 }
@@ -208,59 +209,4 @@ private fun ExpandableFab(
             )
         }
     }
-}
-
-@Composable
-private fun BannerCard(banner: BannerItem) {
-    Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        modifier = Modifier
-            .width(280.dp)
-            .height(100.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(text = banner.title, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(text = banner.description, fontSize = 13.sp, color = Color.Gray)
-        }
-    }
-}
-
-@Composable
-private fun GridCard(card: CardItem) {
-    Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-    ) {
-        Column {
-            AsyncImage(
-                model = card.imageUrl,
-                contentDescription = card.title,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(120.dp)
-            )
-            Text(
-                text = card.title,
-                fontWeight = FontWeight.Medium,
-                fontSize = 14.sp,
-                modifier = Modifier.padding(8.dp)
-            )
-        }
-    }
-}
-
-@Preview(showBackground = true, showSystemUi = true)
-@Composable
-private fun HomeScreenPreview() {
-    HomeScreen()
 }
