@@ -12,8 +12,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.juyeon.androidpractice.ui.alarm.AlarmScreen
+import com.juyeon.androidpractice.data.notification.NotificationHelper
+import com.juyeon.androidpractice.ui.alarm.AlarmViewModel
 import com.juyeon.androidpractice.ui.auth.AuthViewModel
 import com.juyeon.androidpractice.ui.auth.LoginScreen
 import com.juyeon.androidpractice.ui.auth.SignupScreen
@@ -31,15 +33,23 @@ import com.juyeon.androidpractice.ui.write.WriteScreen
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        NotificationHelper.createChannel(this)
         enableEdgeToEdge()
         setContent {
             AndroidPracticeTheme {
                 val authViewModel: AuthViewModel = viewModel()
+                val alarmViewModel: AlarmViewModel = viewModel()
                 var showSignup by remember { mutableStateOf(false) }
                 var currentRoute by remember { mutableStateOf(BottomNavItem.Home.route) }
                 var selectedPostId by remember { mutableStateOf<Int?>(null) }
 
                 val currentUser = authViewModel.currentUser
+                val unreadCount by alarmViewModel.unreadCount.collectAsStateWithLifecycle()
+
+                // 로그인 유저가 바뀔 때마다 알림 필터 갱신
+                if (currentUser != null) {
+                    alarmViewModel.setCurrentUser(currentUser.id)
+                }
 
                 if (currentUser == null) {
                     GradientBackground {
@@ -51,14 +61,13 @@ class MainActivity : ComponentActivity() {
                             )
                         } else {
                             LoginScreen(
-                                onLoginSuccess = { /* currentUser가 세팅됨 */ },
+                                onLoginSuccess = { },
                                 onNavigateToSignup = { showSignup = true },
                                 viewModel = authViewModel
                             )
                         }
                     }
                 } else if (selectedPostId != null) {
-                    // 게시글 상세보기 (전체화면)
                     GradientBackground {
                         PostDetailScreen(
                             postId = selectedPostId!!,
@@ -72,7 +81,8 @@ class MainActivity : ComponentActivity() {
                         bottomBar = {
                             BottomNavigationBar(
                                 currentRoute = currentRoute,
-                                onItemClick = { currentRoute = it.route }
+                                onItemClick = { currentRoute = it.route },
+                                unreadCount = unreadCount
                             )
                         }
                     ) { innerPadding ->
@@ -92,10 +102,15 @@ class MainActivity : ComponentActivity() {
                                         },
                                         onCancel = { currentRoute = BottomNavItem.Home.route }
                                     )
-                                    BottomNavItem.Profile.route -> ProfileScreen(
-                                        nickname = currentUser.nickname
+                                    BottomNavItem.Alarm.route -> com.juyeon.androidpractice.ui.alarm.AlarmScreen(
+                                        viewModel = alarmViewModel
                                     )
-                                    BottomNavItem.Alarm.route -> AlarmScreen()
+                                    BottomNavItem.Profile.route -> ProfileScreen(
+                                        currentUser = currentUser,
+                                        onPostClick = { selectedPostId = it },
+                                        onUserUpdated = { authViewModel.updateUser(it) },
+                                        onLogout = { authViewModel.logout() }
+                                    )
                                 }
                             }
                         }

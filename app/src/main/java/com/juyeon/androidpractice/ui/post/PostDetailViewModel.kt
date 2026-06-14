@@ -7,11 +7,13 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.juyeon.androidpractice.data.db.AppDatabase
+import com.juyeon.androidpractice.data.db.entity.AppNotification
 import com.juyeon.androidpractice.data.db.entity.Comment
 import com.juyeon.androidpractice.data.db.entity.CommentLike
 import com.juyeon.androidpractice.data.db.entity.Like
 import com.juyeon.androidpractice.data.db.entity.Post
 import com.juyeon.androidpractice.data.db.entity.Scrap
+import com.juyeon.androidpractice.data.notification.NotificationHelper
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -27,6 +29,7 @@ class PostDetailViewModel(application: Application) : AndroidViewModel(applicati
     private val likeDao = db.likeDao()
     private val scrapDao = db.scrapDao()
     private val commentLikeDao = db.commentLikeDao()
+    private val notificationDao = db.notificationDao()
 
     private val _postId = MutableStateFlow(-1)
 
@@ -44,7 +47,6 @@ class PostDetailViewModel(application: Application) : AndroidViewModel(applicati
         .flatMapLatest { commentDao.getTopLevelComments(it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // commentId → replies
     val replies: StateFlow<Map<Int, List<Comment>>> = comments
         .flatMapLatest { topLevel ->
             if (topLevel.isEmpty()) flowOf(emptyMap())
@@ -54,14 +56,10 @@ class PostDetailViewModel(application: Application) : AndroidViewModel(applicati
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
-    // commentId → likeCount
     var commentLikeCounts by mutableStateOf<Map<Int, Int>>(emptyMap())
         private set
-
-    // commentId → isLiked by current user
     var commentLikedByMe by mutableStateOf<Map<Int, Boolean>>(emptyMap())
         private set
-
     var commentInput by mutableStateOf("")
         private set
     var replyToComment by mutableStateOf<Comment?>(null)
@@ -93,11 +91,36 @@ class PostDetailViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
-    fun toggleLike(currentUserId: Int) {
+    fun toggleLike(currentUserId: Int, currentNickname: String) {
         val postId = _postId.value
         viewModelScope.launch {
-            if (isLiked) likeDao.delete(currentUserId, postId)
-            else likeDao.insert(Like(currentUserId, postId))
+            if (isLiked) {
+                likeDao.delete(currentUserId, postId)
+            } else {
+                likeDao.insert(Like(currentUserId, postId))
+                val p = post
+                if (p != null && p.authorId != currentUserId) {
+                    val now = now()
+                    notificationDao.insert(
+                        AppNotification(
+                            targetUserId = p.authorId,
+                            type = "LIKE",
+                            fromUserId = currentUserId,
+                            fromNickname = currentNickname,
+                            postId = postId,
+                            postTitle = p.title,
+                            message = "$currentNickname 님이 회원님의 게시글을 좋아합니다.",
+                            createdAt = now
+                        )
+                    )
+                    NotificationHelper.send(
+                        context = getApplication(),
+                        title = "좋아요",
+                        body = "$currentNickname 님이 회원님의 게시글을 좋아합니다.",
+                        id = (System.currentTimeMillis() % Int.MAX_VALUE).toInt()
+                    )
+                }
+            }
             isLiked = !isLiked
         }
     }
@@ -129,7 +152,7 @@ class PostDetailViewModel(application: Application) : AndroidViewModel(applicati
     fun submitComment(authorId: Int, authorNickname: String) {
         val text = commentInput.trim()
         if (text.isBlank()) return
-        val now = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
+        val n = now()
         viewModelScope.launch {
             commentDao.insert(
                 Comment(
@@ -137,12 +160,36 @@ class PostDetailViewModel(application: Application) : AndroidViewModel(applicati
                     authorId = authorId,
                     authorNickname = authorNickname,
                     body = text,
-                    createdAt = now,
+                    createdAt = n,
                     parentCommentId = replyToComment?.id,
                 )
             )
+            val p = post
+            if (p != null && p.authorId != authorId) {
+                notificationDao.insert(
+                    AppNotification(
+                        targetUserId = p.authorId,
+                        type = "COMMENT",
+                        fromUserId = authorId,
+                        fromNickname = authorNickname,
+                        postId = _postId.value,
+                        postTitle = p.title,
+                        message = "$authorNickname 님이 댓글을 남겼습니다: $text",
+                        createdAt = n
+                    )
+                )
+                NotificationHelper.send(
+                    context = getApplication(),
+                    title = "새 댓글",
+                    body = "$authorNickname: $text",
+                    id = (System.currentTimeMillis() % Int.MAX_VALUE).toInt()
+                )
+            }
             commentInput = ""
             replyToComment = null
         }
     }
+
+    private fun now() = LocalDateTime.now()
+        .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
 }

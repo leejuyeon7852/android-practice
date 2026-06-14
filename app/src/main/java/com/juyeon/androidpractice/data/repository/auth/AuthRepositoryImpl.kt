@@ -13,4 +13,6 @@ class AuthRepositoryImpl(private val userDao: UserDao) : AuthRepository {
         userDao.insert(user)
         return true
     }
+
+    override suspend fun updateUser(user: User) = userDao.update(user)
 }

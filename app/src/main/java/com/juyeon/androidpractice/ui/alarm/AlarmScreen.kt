@@ -51,6 +51,9 @@ fun AlarmScreen(viewModel: AlarmViewModel = viewModel()) {
         }
     }
 
+    // 알림 탭 진입 시 전체 읽음 처리 (선택사항 — 클릭해서 개별 읽음도 가능)
+    // LaunchedEffect(Unit) { viewModel.markAllAsRead() }
+
     Column(modifier = Modifier.fillMaxSize()) {
 
         // 알림 리스트
@@ -67,7 +70,7 @@ fun AlarmScreen(viewModel: AlarmViewModel = viewModel()) {
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(notifications) { item ->
-                NotificationCard(item)
+                NotificationCard(item, onClick = { if (!item.isRead) viewModel.markAsRead(item.id) })
             }
         }
 
@@ -153,7 +156,7 @@ fun AlarmScreen(viewModel: AlarmViewModel = viewModel()) {
 }
 
 @Composable
-private fun NotificationCard(item: NotificationItem) {
+private fun NotificationCard(item: NotificationItem, onClick: () -> Unit = {}) {
     val backgroundColor = if (item.isRead) Color.White else Color(0xFFEDF5FB)
     val icon: ImageVector = when (item.type) {
         NotificationType.COMMENT -> Icons.Filled.Notifications
@@ -170,6 +173,7 @@ private fun NotificationCard(item: NotificationItem) {
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = backgroundColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        onClick = onClick,
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(

@@ -13,4 +13,5 @@ data class User(
     val email: String,
     val nationality: String = "",
     val gender: String = "",
+    val profileImageUri: String? = null,
 )

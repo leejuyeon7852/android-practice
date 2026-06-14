@@ -117,7 +117,7 @@ fun PostDetailScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         // 좋아요
-                        IconButton(onClick = { viewModel.toggleLike(currentUser.id) }) {
+                        IconButton(onClick = { viewModel.toggleLike(currentUser.id, currentUser.nickname) }) {
                             Icon(
                                 if (viewModel.isLiked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
                                 contentDescription = "좋아요",

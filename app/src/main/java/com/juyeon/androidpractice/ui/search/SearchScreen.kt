@@ -5,9 +5,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -32,13 +32,32 @@ fun SearchScreen(
 ) {
     val posts by viewModel.posts.collectAsStateWithLifecycle()
 
-    LazyColumn(
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 48.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-        modifier = Modifier.fillMaxSize()
-    ) {
-        items(posts) { post ->
-            PostCard(post = post, onClick = { onPostClick(post.id) })
+    Column(modifier = Modifier.fillMaxSize()) {
+        OutlinedTextField(
+            value = viewModel.searchQuery,
+            onValueChange = viewModel::onSearchChange,
+            placeholder = { Text("게시글 검색...") },
+            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = Color.Gray) },
+            singleLine = true,
+            shape = RoundedCornerShape(12.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                unfocusedBorderColor = Color.Transparent,
+                focusedBorderColor = Color.Transparent,
+                unfocusedContainerColor = Color(0xFFF0F0F0),
+                focusedContainerColor = Color(0xFFF0F0F0),
+            ),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+        )
+        LazyColumn(
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            items(posts) { post ->
+                PostCard(post = post, onClick = { onPostClick(post.id) })
+            }
         }
     }
 }
@@ -100,42 +119,27 @@ fun PostCard(post: Post, onClick: () -> Unit = {}) {
 @Composable
 fun SearchScreenPreview() {
     val samplePosts = listOf(
-        Post(
-            id = 1,
-            authorId = 1,
-            authorNickname = "주연",
-            title = "오늘 날씨가 정말 좋네요",
-            body = "산책하기 딱 좋은 날입니다.",
-            imageUri = null,
-            createdAt = "2026-06-13 10:00"
-        ),
-        Post(
-            id = 2,
-            authorId = 2,
-            authorNickname = "민수",
-            title = "제목이 조금 긴 게시글은 어떻게 보일까요 한번 확인해봅시다",
-            body = "내용",
-            imageUri = null,
-            createdAt = "2026-06-13 11:30"
-        ),
-        Post(
-            id = 3,
-            authorId = 3,
-            authorNickname = "하늘",
-            title = "짧은 제목",
-            body = "내용",
-            imageUri = null,
-            createdAt = "2026-06-13 12:00"
-        )
+        Post(id = 1, authorId = 1, authorNickname = "주연", title = "오늘 날씨가 정말 좋네요", body = "산책하기 딱 좋은 날입니다.", imageUri = null, createdAt = "2026-06-13 10:00"),
+        Post(id = 2, authorId = 2, authorNickname = "민수", title = "제목이 조금 긴 게시글은 어떻게 보일까요 한번 확인해봅시다", body = "내용", imageUri = null, createdAt = "2026-06-13 11:30"),
+        Post(id = 3, authorId = 3, authorNickname = "하늘", title = "짧은 제목", body = "내용", imageUri = null, createdAt = "2026-06-13 12:00")
     )
 
-    LazyColumn(
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 48.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-        modifier = Modifier.fillMaxSize()
-    ) {
-        items(samplePosts) { post ->
-            PostCard(post = post)
+    Column(modifier = Modifier.fillMaxSize()) {
+        OutlinedTextField(
+            value = "",
+            onValueChange = {},
+            placeholder = { Text("게시글 검색...") },
+            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+            singleLine = true,
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)
+        )
+        LazyColumn(
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            items(samplePosts) { post -> PostCard(post = post) }
         }
     }
 }

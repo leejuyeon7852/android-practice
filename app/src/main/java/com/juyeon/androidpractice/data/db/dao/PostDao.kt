@@ -24,6 +24,9 @@ interface PostDao {
     @Query("SELECT * FROM posts WHERE id = :postId LIMIT 1")
     suspend fun getPostById(postId: Int): Post?
 
+    @Query("SELECT * FROM posts WHERE id IN (:postIds) ORDER BY id DESC")
+    fun getPostsByIds(postIds: List<Int>): Flow<List<Post>>
+
     @Query("DELETE FROM posts WHERE id = :postId")
     suspend fun deletePost(postId: Int)
 }

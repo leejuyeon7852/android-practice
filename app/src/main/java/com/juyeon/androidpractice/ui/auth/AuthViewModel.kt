@@ -1,6 +1,7 @@
 package com.juyeon.androidpractice.ui.auth
 
 import android.app.Application
+import android.content.Context
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -11,11 +12,14 @@ import com.juyeon.androidpractice.data.db.entity.User
 import com.juyeon.androidpractice.data.repository.auth.AuthRepositoryImpl
 import kotlinx.coroutines.launch
 
+private const val PREF_NAME = "auth_pref"
+private const val KEY_USER_ID = "logged_in_user_id"
+
 class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val repository = AuthRepositoryImpl(
-        AppDatabase.getInstance(application).userDao()
-    )
+    private val prefs = application.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+    private val db = AppDatabase.getInstance(application)
+    private val repository = AuthRepositoryImpl(db.userDao())
 
     var currentUser by mutableStateOf<User?>(null)
         private set
@@ -26,6 +30,16 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     var signupError by mutableStateOf<String?>(null)
         private set
 
+    init {
+        // 앱 시작 시 저장된 유저 ID로 자동 로그인
+        val savedId = prefs.getInt(KEY_USER_ID, -1)
+        if (savedId != -1) {
+            viewModelScope.launch {
+                currentUser = db.userDao().findById(savedId)
+            }
+        }
+    }
+
     fun login(id: String, password: String, onSuccess: () -> Unit) {
         if (id.isBlank() || password.isBlank()) {
             loginError = "아이디와 비밀번호를 입력해주세요"
@@ -35,12 +49,18 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             val user = repository.login(id, password)
             if (user != null) {
                 currentUser = user
+                prefs.edit().putInt(KEY_USER_ID, user.id).apply()
                 loginError = null
                 onSuccess()
             } else {
                 loginError = "아이디 또는 비밀번호가 올바르지 않습니다"
             }
         }
+    }
+
+    fun logout() {
+        prefs.edit().remove(KEY_USER_ID).apply()
+        currentUser = null
     }
 
     fun signup(
@@ -81,6 +101,13 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     fun updateDraft(update: User.() -> User) {
         userDraft = userDraft.update()
         signupError = null
+    }
+
+    fun updateUser(user: User) {
+        viewModelScope.launch {
+            repository.updateUser(user)
+            currentUser = user
+        }
     }
 
     fun clearLoginError() { loginError = null }

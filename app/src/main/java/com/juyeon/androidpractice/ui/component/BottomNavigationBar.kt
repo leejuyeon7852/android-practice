@@ -9,6 +9,8 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -31,14 +33,15 @@ sealed class BottomNavItem(
     object Home: BottomNavItem("home", "홈", Icons.Filled.Home)
     object Search: BottomNavItem("search", "탐색", Icons.Filled.Search)
     object Write: BottomNavItem("write", "글쓰기", Icons.Filled.Edit)
-    object Alarm: BottomNavItem("alarm", "알람", Icons.Filled.Notifications)
+    object Alarm: BottomNavItem("alarm", "알림", Icons.Filled.Notifications)
     object Profile: BottomNavItem("profile", "MY", Icons.Filled.Person)
 }
 
 @Composable
 fun BottomNavigationBar(
     currentRoute: String,
-    onItemClick: (BottomNavItem) -> Unit
+    onItemClick: (BottomNavItem) -> Unit,
+    unreadCount: Int = 0,
 ){
     val items = listOf(
         BottomNavItem.Home,
@@ -56,7 +59,15 @@ fun BottomNavigationBar(
             NavigationBarItem(
                 selected = currentRoute == item.route,
                 onClick = { onItemClick(item) },
-                icon = { Icon(imageVector = item.icon, contentDescription = item.label) },
+                icon = {
+                    BadgedBox(badge = {
+                        if (item == BottomNavItem.Alarm && unreadCount > 0) {
+                            Badge { Text(if (unreadCount > 99) "99+" else "$unreadCount") }
+                        }
+                    }) {
+                        Icon(imageVector = item.icon, contentDescription = item.label)
+                    }
+                },
                 label = { Text(item.label) },
                 colors = NavigationBarItemDefaults.colors(
                     selectedIconColor = GradientStart,
@@ -75,7 +86,7 @@ fun BottomNavigationBar(
 private fun BottomNavigationBarPreview(){
     Scaffold(
         bottomBar = {
-            BottomNavigationBar(currentRoute = "home", onItemClick = {})
+            BottomNavigationBar(currentRoute = "home", onItemClick = {}, unreadCount = 3)
         }
     ) { innerPadding ->
         Box(modifier = Modifier.padding(innerPadding))
