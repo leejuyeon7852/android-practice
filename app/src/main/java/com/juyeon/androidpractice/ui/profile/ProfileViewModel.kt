@@ -48,6 +48,34 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val followerCount: StateFlow<Int> = _userId
+        .filter { it != -1 }
+        .flatMapLatest { db.followDao().getFollowerCount(it) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    val followingCount: StateFlow<Int> = _userId
+        .filter { it != -1 }
+        .flatMapLatest { db.followDao().getFollowingCount(it) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    val followerUsers: StateFlow<List<com.juyeon.androidpractice.data.db.entity.User>> = _userId
+        .filter { it != -1 }
+        .flatMapLatest { uid ->
+            db.followDao().getFollowerIds(uid).map { ids ->
+                if (ids.isEmpty()) emptyList() else db.userDao().getUsersByIds(ids)
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val followingUsers: StateFlow<List<com.juyeon.androidpractice.data.db.entity.User>> = _userId
+        .filter { it != -1 }
+        .flatMapLatest { uid ->
+            db.followDao().getFollowingIds(uid).map { ids ->
+                if (ids.isEmpty()) emptyList() else db.userDao().getUsersByIds(ids)
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     fun init(userId: Int) {
         if (_userId.value != userId) _userId.value = userId
     }

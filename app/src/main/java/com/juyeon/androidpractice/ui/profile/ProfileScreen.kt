@@ -45,6 +45,13 @@ fun ProfileScreen(
     val myComments by viewModel.myComments.collectAsStateWithLifecycle()
     val scrappedPosts by viewModel.scrappedPosts.collectAsStateWithLifecycle()
     val likedPosts by viewModel.likedPosts.collectAsStateWithLifecycle()
+    val followerCount by viewModel.followerCount.collectAsStateWithLifecycle()
+    val followingCount by viewModel.followingCount.collectAsStateWithLifecycle()
+    val followerUsers by viewModel.followerUsers.collectAsStateWithLifecycle()
+    val followingUsers by viewModel.followingUsers.collectAsStateWithLifecycle()
+
+    var showFollowerDialog by remember { mutableStateOf(false) }
+    var showFollowingDialog by remember { mutableStateOf(false) }
 
     var selectedTab by remember { mutableIntStateOf(0) }
     var showSettingsMenu by remember { mutableStateOf(false) }
@@ -58,6 +65,22 @@ fun ProfileScreen(
     ) { uri -> uri?.let { editImageUri = it.toString() } }
 
     val tabs = listOf("쓴 글", "댓글", "스크랩", "좋아요")
+
+    if (showFollowerDialog) {
+        UserListDialog(
+            title = "팔로워",
+            users = followerUsers,
+            onDismiss = { showFollowerDialog = false }
+        )
+    }
+
+    if (showFollowingDialog) {
+        UserListDialog(
+            title = "팔로잉",
+            users = followingUsers,
+            onDismiss = { showFollowingDialog = false }
+        )
+    }
 
     if (showLogoutDialog) {
         AlertDialog(
@@ -200,8 +223,8 @@ fun ProfileScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             Row(horizontalArrangement = Arrangement.spacedBy(40.dp)) {
-                FollowCount(label = "팔로워", count = 0)
-                FollowCount(label = "팔로잉", count = 0)
+                FollowCount(label = "팔로워", count = followerCount, onClick = { showFollowerDialog = true })
+                FollowCount(label = "팔로잉", count = followingCount, onClick = { showFollowingDialog = true })
             }
         }
 
@@ -286,9 +309,60 @@ private fun CommentListContent(comments: List<Comment>) {
 }
 
 @Composable
-private fun FollowCount(label: String, count: Int) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+private fun FollowCount(label: String, count: Int, onClick: () -> Unit = {}) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.clickable(onClick = onClick)
+    ) {
         Text(text = count.toString(), fontWeight = FontWeight.Bold, fontSize = 18.sp)
         Text(text = label, fontSize = 13.sp, color = Color.Gray)
     }
+}
+
+@Composable
+private fun UserListDialog(title: String, users: List<User>, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title, fontWeight = FontWeight.Bold) },
+        text = {
+            if (users.isEmpty()) {
+                Box(modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp), contentAlignment = Alignment.Center) {
+                    Text("아직 없습니다.", color = Color.Gray, fontSize = 14.sp)
+                }
+            } else {
+                LazyColumn(modifier = Modifier.fillMaxWidth()) {
+                    items(users) { user ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.LightGray),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (user.profileImageUri != null) {
+                                    AsyncImage(
+                                        model = user.profileImageUri,
+                                        contentDescription = null,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                }
+                            }
+                            Text(text = user.nickname, fontWeight = FontWeight.Medium, fontSize = 15.sp)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("닫기") }
+        }
+    )
 }

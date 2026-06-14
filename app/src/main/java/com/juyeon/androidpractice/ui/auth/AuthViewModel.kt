@@ -61,6 +61,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     fun logout() {
         prefs.edit().remove(KEY_USER_ID).apply()
         currentUser = null
+        userDraft = User(userId = "", password = "", nickname = "", email = "")
     }
 
     fun signup(

@@ -10,6 +10,7 @@ import com.juyeon.androidpractice.data.db.AppDatabase
 import com.juyeon.androidpractice.data.db.entity.AppNotification
 import com.juyeon.androidpractice.data.db.entity.Comment
 import com.juyeon.androidpractice.data.db.entity.CommentLike
+import com.juyeon.androidpractice.data.db.entity.Follow
 import com.juyeon.androidpractice.data.db.entity.Like
 import com.juyeon.androidpractice.data.db.entity.Post
 import com.juyeon.androidpractice.data.db.entity.Scrap
@@ -30,6 +31,7 @@ class PostDetailViewModel(application: Application) : AndroidViewModel(applicati
     private val scrapDao = db.scrapDao()
     private val commentLikeDao = db.commentLikeDao()
     private val notificationDao = db.notificationDao()
+    private val followDao = db.followDao()
 
     private val _postId = MutableStateFlow(-1)
 
@@ -39,8 +41,17 @@ class PostDetailViewModel(application: Application) : AndroidViewModel(applicati
         private set
     var isScrapped by mutableStateOf(false)
         private set
+    var isFollowing by mutableStateOf(false)
+        private set
     var likeCount by mutableStateOf(0)
         private set
+    var followerCount by mutableStateOf(0)
+        private set
+    // 현재 유저가 팔로우 중인 userId Set (댓글 팔로우 버튼에도 사용)
+    var followingUserIds by mutableStateOf<Set<Int>>(emptySet())
+        private set
+
+    private var _currentUserId = -1
 
     val comments: StateFlow<List<Comment>> = _postId
         .filter { it != -1 }
@@ -67,15 +78,31 @@ class PostDetailViewModel(application: Application) : AndroidViewModel(applicati
 
     fun init(postId: Int, currentUserId: Int) {
         if (_postId.value == postId) return
+        _currentUserId = currentUserId
         _postId.value = postId
         viewModelScope.launch {
             post = postDao.getPostById(postId)
             isLiked = likeDao.isLiked(currentUserId, postId)
             isScrapped = scrapDao.isScrapped(currentUserId, postId)
+            post?.let { p ->
+                if (p.authorId != currentUserId) {
+                    isFollowing = followDao.isFollowing(currentUserId, p.authorId)
+                }
+            }
         }
         likeDao.getLikeCount(postId)
             .onEach { likeCount = it }
             .launchIn(viewModelScope)
+        // 팔로잉 목록 실시간 구독 (댓글 팔로우 버튼 상태 반영)
+        followDao.getFollowingIds(currentUserId)
+            .onEach { followingUserIds = it.toSet() }
+            .launchIn(viewModelScope)
+        viewModelScope.launch {
+            post?.let { p ->
+                followDao.getFollowerCount(p.authorId)
+                    .collect { followerCount = it }
+            }
+        }
     }
 
     fun refreshCommentInteractions(commentIds: List<Int>, currentUserId: Int) {
@@ -91,6 +118,44 @@ class PostDetailViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
+    // 게시글 작성자 팔로우 (PostDetail 상단 버튼)
+    fun toggleFollow(currentUserId: Int, currentNickname: String) {
+        val p = post ?: return
+        toggleFollowUser(targetUserId = p.authorId, currentUserId = currentUserId, currentNickname = currentNickname,
+            onStateChange = { isFollowing = it })
+    }
+
+    // 범용 팔로우 (댓글 작성자 등)
+    fun toggleFollowUser(targetUserId: Int, currentUserId: Int, currentNickname: String, onStateChange: ((Boolean) -> Unit)? = null) {
+        if (targetUserId == currentUserId) return
+        val alreadyFollowing = followingUserIds.contains(targetUserId)
+        viewModelScope.launch {
+            if (alreadyFollowing) {
+                followDao.unfollow(currentUserId, targetUserId)
+            } else {
+                followDao.follow(Follow(currentUserId, targetUserId))
+                val n = now()
+                notificationDao.insert(
+                    AppNotification(
+                        targetUserId = targetUserId,
+                        type = "FOLLOW",
+                        fromUserId = currentUserId,
+                        fromNickname = currentNickname,
+                        message = "$currentNickname 님이 회원님을 팔로우하기 시작했습니다.",
+                        createdAt = n
+                    )
+                )
+                NotificationHelper.send(
+                    context = getApplication(),
+                    title = "새 팔로워",
+                    body = "$currentNickname 님이 팔로우했습니다.",
+                    id = (System.currentTimeMillis() % Int.MAX_VALUE).toInt()
+                )
+            }
+            onStateChange?.invoke(!alreadyFollowing)
+        }
+    }
+
     fun toggleLike(currentUserId: Int, currentNickname: String) {
         val postId = _postId.value
         viewModelScope.launch {
@@ -100,7 +165,7 @@ class PostDetailViewModel(application: Application) : AndroidViewModel(applicati
                 likeDao.insert(Like(currentUserId, postId))
                 val p = post
                 if (p != null && p.authorId != currentUserId) {
-                    val now = now()
+                    val n = now()
                     notificationDao.insert(
                         AppNotification(
                             targetUserId = p.authorId,
@@ -110,7 +175,7 @@ class PostDetailViewModel(application: Application) : AndroidViewModel(applicati
                             postId = postId,
                             postTitle = p.title,
                             message = "$currentNickname 님이 회원님의 게시글을 좋아합니다.",
-                            createdAt = now
+                            createdAt = n
                         )
                     )
                     NotificationHelper.send(
@@ -164,7 +229,10 @@ class PostDetailViewModel(application: Application) : AndroidViewModel(applicati
                     parentCommentId = replyToComment?.id,
                 )
             )
+
             val p = post
+
+            // 게시글 작성자에게 댓글 알림
             if (p != null && p.authorId != authorId) {
                 notificationDao.insert(
                     AppNotification(
@@ -185,6 +253,30 @@ class PostDetailViewModel(application: Application) : AndroidViewModel(applicati
                     id = (System.currentTimeMillis() % Int.MAX_VALUE).toInt()
                 )
             }
+
+            // 대댓글이면 부모 댓글 작성자에게도 알림
+            val parent = replyToComment
+            if (parent != null && parent.authorId != authorId) {
+                notificationDao.insert(
+                    AppNotification(
+                        targetUserId = parent.authorId,
+                        type = "COMMENT",
+                        fromUserId = authorId,
+                        fromNickname = authorNickname,
+                        postId = _postId.value,
+                        postTitle = p?.title ?: "",
+                        message = "$authorNickname 님이 회원님의 댓글에 답글을 남겼습니다: $text",
+                        createdAt = n
+                    )
+                )
+                NotificationHelper.send(
+                    context = getApplication(),
+                    title = "새 답글",
+                    body = "$authorNickname: $text",
+                    id = (System.currentTimeMillis() % Int.MAX_VALUE).toInt()
+                )
+            }
+
             commentInput = ""
             replyToComment = null
         }
