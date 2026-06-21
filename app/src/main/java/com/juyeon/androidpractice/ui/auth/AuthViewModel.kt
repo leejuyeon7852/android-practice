@@ -7,19 +7,19 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.juyeon.androidpractice.data.db.AppDatabase
 import com.juyeon.androidpractice.data.db.entity.User
-import com.juyeon.androidpractice.data.repository.auth.AuthRepositoryImpl
+import com.juyeon.androidpractice.data.network.ApiClient
+import com.juyeon.androidpractice.data.network.TokenManager
+import com.juyeon.androidpractice.data.network.toEntity
+import com.juyeon.androidpractice.data.repository.auth.AuthRepositoryRemoteImpl
 import kotlinx.coroutines.launch
-
-private const val PREF_NAME = "auth_pref"
-private const val KEY_USER_ID = "logged_in_user_id"
 
 class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val prefs = application.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
-    private val db = AppDatabase.getInstance(application)
-    private val repository = AuthRepositoryImpl(db.userDao())
+    private val tokenManager = TokenManager(application)
+    private val repository = AuthRepositoryRemoteImpl(tokenManager).also {
+        ApiClient.init(tokenManager)
+    }
 
     var currentUser by mutableStateOf<User?>(null)
         private set
@@ -31,11 +31,14 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         private set
 
     init {
-        // 앱 시작 시 저장된 유저 ID로 자동 로그인
-        val savedId = prefs.getInt(KEY_USER_ID, -1)
-        if (savedId != -1) {
+        // 앱 시작 시 저장된 토큰으로 자동 로그인
+        if (tokenManager.get() != null) {
             viewModelScope.launch {
-                currentUser = db.userDao().findById(savedId)
+                try {
+                    currentUser = ApiClient.api.getMe().toEntity()
+                } catch (e: Exception) {
+                    tokenManager.clear()
+                }
             }
         }
     }
@@ -49,7 +52,6 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             val user = repository.login(id, password)
             if (user != null) {
                 currentUser = user
-                prefs.edit().putInt(KEY_USER_ID, user.id).apply()
                 loginError = null
                 onSuccess()
             } else {
@@ -59,7 +61,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun logout() {
-        prefs.edit().remove(KEY_USER_ID).apply()
+        tokenManager.clear()
         currentUser = null
         userDraft = User(userId = "", password = "", nickname = "", email = "")
     }
@@ -87,7 +89,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             }
             else -> {
                 viewModelScope.launch {
-                    val success = repository.signup(user)
+                    val success = repository.signup(user.copy(password = password))
                     if (success) {
                         signupError = null
                         onSuccess()
@@ -105,7 +107,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun updateUser(user: User) {
-        currentUser = user  // 즉시 UI 반영
+        currentUser = user
         viewModelScope.launch { repository.updateUser(user) }
     }
 
