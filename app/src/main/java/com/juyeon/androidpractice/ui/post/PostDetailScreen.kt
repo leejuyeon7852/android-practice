@@ -29,11 +29,12 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
-import com.juyeon.androidpractice.data.db.entity.Comment
 import com.juyeon.androidpractice.data.db.entity.User
+import com.juyeon.androidpractice.data.network.dto.CommentResponse
+import com.juyeon.androidpractice.data.network.dto.PostResponse
+import com.juyeon.androidpractice.data.network.ApiClient
 import com.juyeon.androidpractice.ui.theme.GradientStart
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -42,15 +43,14 @@ fun PostDetailScreen(
     postId: Int,
     currentUser: User,
     onBack: () -> Unit,
-    onEdit: (com.juyeon.androidpractice.data.db.entity.Post) -> Unit = {},
+    onEdit: (PostResponse) -> Unit = {},
     onUserClick: (userId: Int) -> Unit = {},
     viewModel: PostDetailViewModel = viewModel()
 ) {
-    LaunchedEffect(postId) { viewModel.init(postId, currentUser.id) }
+    LaunchedEffect(postId) { viewModel.init(postId, currentUser.id, currentUser.nickname) }
 
     val post = viewModel.post
-    val comments by viewModel.comments.collectAsStateWithLifecycle()
-    val replies by viewModel.replies.collectAsStateWithLifecycle()
+    val comments = viewModel.comments
     var showCommentSheet by remember { mutableStateOf(false) }
     var showPostMenu by remember { mutableStateOf(false) }
     var showDeletePostDialog by remember { mutableStateOf(false) }
@@ -71,12 +71,6 @@ fun PostDetailScreen(
                 TextButton(onClick = { showDeletePostDialog = false }) { Text("취소") }
             }
         )
-    }
-
-    // 댓글 목록 바뀔 때 좋아요 상태 갱신
-    val allCommentIds = (comments + replies.values.flatten()).map { it.id }
-    LaunchedEffect(allCommentIds) {
-        if (allCommentIds.isNotEmpty()) viewModel.refreshCommentInteractions(allCommentIds, currentUser.id)
     }
 
     Scaffold(
@@ -143,46 +137,35 @@ fun PostDetailScreen(
                                 interactionSource = remember { MutableInteractionSource() }
                             )
                         ) {
-                            val authorImg = viewModel.userProfileMap[post.authorId]
-                            if (authorImg != null) {
-                                AsyncImage(
-                                    model = authorImg,
-                                    contentDescription = null,
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.size(28.dp).clip(CircleShape)
-                                )
-                            } else {
-                                Box(modifier = Modifier.size(28.dp).clip(CircleShape).background(Color.LightGray))
-                            }
+                            Box(modifier = Modifier.size(28.dp).clip(CircleShape).background(Color.LightGray))
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(text = post.authorNickname, fontSize = 14.sp, fontWeight = FontWeight.Medium)
                         }
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = post.createdAt, fontSize = 12.sp, color = Color.Gray)
+                        Text(text = post.createdAt.take(10), fontSize = 12.sp, color = Color.Gray)
                         if (post.authorId != currentUser.id) {
                             Spacer(modifier = Modifier.weight(1f))
-                            OutlinedButton(
-                                onClick = { viewModel.toggleFollow(currentUser.id, currentUser.nickname) },
+                            Button(
+                                onClick = { viewModel.toggleFollow() },
                                 shape = RoundedCornerShape(20.dp),
                                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                                colors = if (viewModel.isFollowing)
-                                    ButtonDefaults.outlinedButtonColors(containerColor = GradientStart.copy(alpha = 0.1f))
-                                else
-                                    ButtonDefaults.outlinedButtonColors(),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (viewModel.isFollowing) Color.LightGray else GradientStart
+                                ),
                                 modifier = Modifier.height(30.dp)
                             ) {
                                 Text(
                                     text = if (viewModel.isFollowing) "팔로잉" else "팔로우",
                                     fontSize = 12.sp,
-                                    color = if (viewModel.isFollowing) GradientStart else Color.Gray
+                                    color = Color.White
                                 )
                             }
                         }
                     }
                     Spacer(modifier = Modifier.height(16.dp))
-                    if (post.imageUri != null) {
+                    if (post.imageUrl != null) {
                         AsyncImage(
-                            model = post.imageUri,
+                            model = ApiClient.imageUrl(post.imageUrl),
                             contentDescription = null,
                             contentScale = ContentScale.Fit,
                             modifier = Modifier
@@ -195,14 +178,12 @@ fun PostDetailScreen(
                     Text(text = post.body, fontSize = 16.sp, lineHeight = 24.sp)
                     Spacer(modifier = Modifier.height(24.dp))
                     HorizontalDivider()
-                    // 액션 바
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // 좋아요
-                        IconButton(onClick = { viewModel.toggleLike(currentUser.id, currentUser.nickname) }) {
+                        IconButton(onClick = { viewModel.toggleLike() }) {
                             Icon(
                                 if (viewModel.isLiked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
                                 contentDescription = "좋아요",
@@ -211,8 +192,7 @@ fun PostDetailScreen(
                         }
                         Text("${viewModel.likeCount}", fontSize = 14.sp, color = Color.Gray)
                         Spacer(modifier = Modifier.width(8.dp))
-                        // 스크랩
-                        IconButton(onClick = { viewModel.toggleScrap(currentUser.id) }) {
+                        IconButton(onClick = { viewModel.toggleScrap() }) {
                             Icon(
                                 if (viewModel.isScrapped) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder,
                                 contentDescription = "스크랩",
@@ -220,7 +200,6 @@ fun PostDetailScreen(
                             )
                         }
                         Spacer(modifier = Modifier.width(8.dp))
-                        // 댓글
                         IconButton(onClick = { showCommentSheet = true }) {
                             Icon(Icons.Filled.ChatBubbleOutline, contentDescription = "댓글", tint = Color.Gray)
                         }
@@ -239,22 +218,18 @@ fun PostDetailScreen(
         ) {
             CommentSheetContent(
                 comments = comments,
-                replies = replies,
                 commentLikeCounts = viewModel.commentLikeCounts,
                 commentLikedByMe = viewModel.commentLikedByMe,
                 replyToComment = viewModel.replyToComment,
                 commentInput = viewModel.commentInput,
                 currentUserId = currentUser.id,
-                followingUserIds = viewModel.followingUserIds,
                 onInputChange = viewModel::onCommentInputChange,
-                onSubmit = { viewModel.submitComment(currentUser.id, currentUser.nickname) },
-                onLikeComment = { viewModel.toggleCommentLike(it, currentUser.id) },
+                onSubmit = { viewModel.submitComment() },
+                onLikeComment = { viewModel.toggleCommentLike(it) },
                 onReplyTo = { viewModel.setReplyTo(it) },
                 onCancelReply = { viewModel.setReplyTo(null) },
-                onFollowUser = { targetId -> viewModel.toggleFollowUser(targetId, currentUser.id, currentUser.nickname) },
-                onDeleteComment = { commentId -> viewModel.deleteComment(commentId) },
+                onDeleteComment = { viewModel.deleteComment(it) },
                 onUserClick = onUserClick,
-                userProfileMap = viewModel.userProfileMap
             )
         }
     }
@@ -262,23 +237,19 @@ fun PostDetailScreen(
 
 @Composable
 private fun CommentSheetContent(
-    comments: List<Comment>,
-    replies: Map<Int, List<Comment>>,
+    comments: List<CommentResponse>,
     commentLikeCounts: Map<Int, Int>,
     commentLikedByMe: Map<Int, Boolean>,
-    replyToComment: Comment?,
+    replyToComment: CommentResponse?,
     commentInput: String,
     currentUserId: Int,
-    followingUserIds: Set<Int>,
     onInputChange: (String) -> Unit,
     onSubmit: () -> Unit,
     onLikeComment: (Int) -> Unit,
-    onReplyTo: (Comment) -> Unit,
+    onReplyTo: (CommentResponse) -> Unit,
     onCancelReply: () -> Unit,
-    onFollowUser: (Int) -> Unit,
     onDeleteComment: (Int) -> Unit = {},
     onUserClick: (Int) -> Unit = {},
-    userProfileMap: Map<Int, String?> = emptyMap(),
 ) {
     Column(
         modifier = Modifier
@@ -301,32 +272,24 @@ private fun CommentSheetContent(
             items(comments) { comment ->
                 CommentItem(
                     comment = comment,
-                    authorImageUri = userProfileMap[comment.authorId],
                     likeCount = commentLikeCounts[comment.id] ?: 0,
                     isLiked = commentLikedByMe[comment.id] == true,
-                    isFollowing = followingUserIds.contains(comment.authorId),
-                    showFollowButton = comment.authorId != currentUserId,
-                    onLike = { onLikeComment(comment.id) },
-                    onReply = { onReplyTo(comment) },
-                    onFollow = { onFollowUser(comment.authorId) },
                     isReply = false,
                     showDeleteButton = comment.authorId == currentUserId,
+                    onLike = { onLikeComment(comment.id) },
+                    onReply = { onReplyTo(comment) },
                     onDelete = { onDeleteComment(comment.id) },
                     onUserClick = { onUserClick(comment.authorId) }
                 )
-                replies[comment.id]?.forEach { reply ->
+                comment.replies.forEach { reply ->
                     CommentItem(
                         comment = reply,
-                        authorImageUri = userProfileMap[reply.authorId],
                         likeCount = commentLikeCounts[reply.id] ?: 0,
                         isLiked = commentLikedByMe[reply.id] == true,
-                        isFollowing = followingUserIds.contains(reply.authorId),
-                        showFollowButton = reply.authorId != currentUserId,
-                        onLike = { onLikeComment(reply.id) },
-                        onReply = { onReplyTo(comment) },
-                        onFollow = { onFollowUser(reply.authorId) },
                         isReply = true,
                         showDeleteButton = reply.authorId == currentUserId,
+                        onLike = { onLikeComment(reply.id) },
+                        onReply = { onReplyTo(comment) },
                         onDelete = { onDeleteComment(reply.id) },
                         onUserClick = { onUserClick(reply.authorId) }
                     )
@@ -336,7 +299,6 @@ private fun CommentSheetContent(
 
         HorizontalDivider()
 
-        // 대댓글 대상 표시
         if (replyToComment != null) {
             Row(
                 modifier = Modifier
@@ -353,7 +315,6 @@ private fun CommentSheetContent(
             }
         }
 
-        // 댓글 입력창
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -384,15 +345,11 @@ private fun CommentSheetContent(
 
 @Composable
 private fun CommentItem(
-    comment: Comment,
-    authorImageUri: String? = null,
+    comment: CommentResponse,
     likeCount: Int,
     isLiked: Boolean,
-    isFollowing: Boolean,
-    showFollowButton: Boolean,
     onLike: () -> Unit,
     onReply: () -> Unit,
-    onFollow: () -> Unit,
     isReply: Boolean,
     showDeleteButton: Boolean = false,
     onDelete: () -> Unit = {},
@@ -403,51 +360,29 @@ private fun CommentItem(
             .fillMaxWidth()
             .padding(start = if (isReply) 48.dp else 16.dp, end = 16.dp, top = 10.dp, bottom = 4.dp)
     ) {
-        if (authorImageUri != null) {
-            AsyncImage(
-                model = authorImageUri,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.size(32.dp).clip(CircleShape)
-                    .clickable(onClick = onUserClick, indication = null, interactionSource = remember { MutableInteractionSource() })
-            )
-        } else {
-            Box(
-                modifier = Modifier.size(32.dp).clip(CircleShape).background(Color.LightGray)
-                    .clickable(onClick = onUserClick, indication = null, interactionSource = remember { MutableInteractionSource() })
-            )
-        }
+        Box(
+            modifier = Modifier.size(32.dp).clip(CircleShape).background(Color.LightGray)
+                .clickable(onClick = onUserClick, indication = null, interactionSource = remember { MutableInteractionSource() })
+        )
         Spacer(modifier = Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = comment.authorNickname,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp,
-                    modifier = Modifier.clickable(onClick = onUserClick, indication = null, interactionSource = remember { MutableInteractionSource() })
-                )
-                if (showFollowButton) {
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = if (isFollowing) "팔로잉" else "팔로우",
-                        fontSize = 11.sp,
-                        color = if (isFollowing) GradientStart else Color.Gray,
-                        modifier = Modifier.clickable(onClick = onFollow, indication = null,
-                            interactionSource = remember { MutableInteractionSource() })
-                    )
-                }
-            }
+            Text(
+                text = comment.authorNickname,
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp,
+                modifier = Modifier.clickable(onClick = onUserClick, indication = null, interactionSource = remember { MutableInteractionSource() })
+            )
             Spacer(modifier = Modifier.height(2.dp))
             Text(text = comment.body, fontSize = 14.sp)
             Spacer(modifier = Modifier.height(4.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(text = comment.createdAt, fontSize = 11.sp, color = Color.Gray)
+                Text(text = comment.createdAt.take(10), fontSize = 11.sp, color = Color.Gray)
                 if (!isReply) {
                     Text(
                         text = "답글 달기",
                         fontSize = 11.sp,
                         color = Color.Gray,
-                        modifier = Modifier.clickable(onClick = onReply, indication = null, interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() })
+                        modifier = Modifier.clickable(onClick = onReply, indication = null, interactionSource = remember { MutableInteractionSource() })
                     )
                 }
             }

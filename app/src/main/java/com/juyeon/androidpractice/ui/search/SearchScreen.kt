@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -21,11 +22,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
-import com.juyeon.androidpractice.data.db.entity.Post
-import com.juyeon.androidpractice.data.db.entity.User
+import com.juyeon.androidpractice.data.network.dto.PostResponse
+import com.juyeon.androidpractice.data.network.dto.UserResponse
+import com.juyeon.androidpractice.data.network.ApiClient
 import com.juyeon.androidpractice.ui.theme.GradientStart
 
 @Composable
@@ -34,8 +35,8 @@ fun SearchScreen(
     onUserClick: (userId: Int) -> Unit = {},
     viewModel: SearchViewModel = viewModel()
 ) {
-    val posts by viewModel.posts.collectAsStateWithLifecycle()
-    val users by viewModel.users.collectAsStateWithLifecycle()
+    val posts = viewModel.posts
+    val users = viewModel.users
 
     Column(modifier = Modifier.fillMaxSize()) {
         OutlinedTextField(
@@ -70,6 +71,15 @@ fun SearchScreen(
                 selected = viewModel.selectedTab == 1,
                 onClick = { viewModel.onTabSelected(1) },
                 text = { Text("유저") }
+            )
+        }
+
+        viewModel.errorMessage?.let {
+            Text(
+                text = "오류: $it",
+                color = MaterialTheme.colorScheme.error,
+                fontSize = 13.sp,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
             )
         }
 
@@ -108,7 +118,7 @@ fun SearchScreen(
 }
 
 @Composable
-fun UserCard(user: User, onClick: () -> Unit = {}) {
+fun UserCard(user: UserResponse, onClick: () -> Unit = {}) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -116,29 +126,19 @@ fun UserCard(user: User, onClick: () -> Unit = {}) {
             .padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        if (user.profileImageUri != null) {
-            AsyncImage(
-                model = user.profileImageUri,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.size(44.dp).clip(CircleShape)
-            )
-        } else {
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(Color.LightGray),
-                contentAlignment = Alignment.Center
-            ) {}
-        }
+        Box(
+            modifier = Modifier
+                .size(44.dp)
+                .clip(CircleShape)
+                .background(Color.LightGray)
+        )
         Spacer(modifier = Modifier.width(12.dp))
         Text(text = user.nickname, fontWeight = FontWeight.Medium, fontSize = 15.sp)
     }
 }
 
 @Composable
-fun PostCard(post: Post, onClick: () -> Unit = {}) {
+fun PostCard(post: PostResponse, onClick: () -> Unit = {}) {
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -175,10 +175,10 @@ fun PostCard(post: Post, onClick: () -> Unit = {}) {
                     modifier = Modifier.fillMaxWidth()
                 )
             }
-            if (post.imageUri != null) {
+            if (post.imageUrl != null) {
                 Spacer(modifier = Modifier.width(12.dp))
                 AsyncImage(
-                    model = post.imageUri,
+                    model = ApiClient.imageUrl(post.imageUrl),
                     contentDescription = null,
                     contentScale = ContentScale.Fit,
                     modifier = Modifier

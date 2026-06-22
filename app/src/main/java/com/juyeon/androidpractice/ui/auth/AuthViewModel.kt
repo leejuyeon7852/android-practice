@@ -1,7 +1,6 @@
 package com.juyeon.androidpractice.ui.auth
 
 import android.app.Application
-import android.content.Context
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -10,20 +9,19 @@ import androidx.lifecycle.viewModelScope
 import com.juyeon.androidpractice.data.db.entity.User
 import com.juyeon.androidpractice.data.network.ApiClient
 import com.juyeon.androidpractice.data.network.TokenManager
-import com.juyeon.androidpractice.data.network.toEntity
-import com.juyeon.androidpractice.data.repository.auth.AuthRepositoryRemoteImpl
+import com.juyeon.androidpractice.data.network.dto.LoginRequest
+import com.juyeon.androidpractice.data.network.dto.SignupRequest
+import com.juyeon.androidpractice.data.network.dto.toUser
 import kotlinx.coroutines.launch
 
 class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
     private val tokenManager = TokenManager(application)
-    private val repository = AuthRepositoryRemoteImpl(tokenManager).also {
-        ApiClient.init(tokenManager)
-    }
+    private val api = ApiClient.api.also { ApiClient.init(tokenManager) }
 
     var currentUser by mutableStateOf<User?>(null)
         private set
-    var userDraft by mutableStateOf(User(userId = "", password = "", nickname = "", email = ""))
+    var userDraft by mutableStateOf(User())
         private set
     var loginError by mutableStateOf<String?>(null)
         private set
@@ -31,11 +29,10 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         private set
 
     init {
-        // 앱 시작 시 저장된 토큰으로 자동 로그인
         if (tokenManager.get() != null) {
             viewModelScope.launch {
                 try {
-                    currentUser = ApiClient.api.getMe().toEntity()
+                    currentUser = api.getMe().toUser()
                 } catch (e: Exception) {
                     tokenManager.clear()
                 }
@@ -49,12 +46,13 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
         viewModelScope.launch {
-            val user = repository.login(id, password)
-            if (user != null) {
-                currentUser = user
+            try {
+                val token = api.login(LoginRequest(id, password))
+                tokenManager.save(token.accessToken)
+                currentUser = api.getMe().toUser()
                 loginError = null
                 onSuccess()
-            } else {
+            } catch (e: Exception) {
                 loginError = "아이디 또는 비밀번호가 올바르지 않습니다"
             }
         }
@@ -63,15 +61,10 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     fun logout() {
         tokenManager.clear()
         currentUser = null
-        userDraft = User(userId = "", password = "", nickname = "", email = "")
+        userDraft = User()
     }
 
-    fun signup(
-        user: User,
-        password: String,
-        passwordConfirm: String,
-        onSuccess: () -> Unit
-    ) {
+    fun signup(user: User, password: String, passwordConfirm: String, onSuccess: () -> Unit) {
         val idRegex = Regex("^[a-zA-Z0-9]{4,}$")
         val passwordRegex = Regex("^(?=.*[a-zA-Z])(?=.*[0-9]).{8,}$")
         when {
@@ -89,12 +82,12 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             }
             else -> {
                 viewModelScope.launch {
-                    val success = repository.signup(user.copy(password = password))
-                    if (success) {
+                    try {
+                        api.signup(SignupRequest(user.userId, user.nickname, user.email, password))
                         signupError = null
                         onSuccess()
-                    } else {
-                        signupError = "이미 사용 중인 아이디입니다"
+                    } catch (e: retrofit2.HttpException) {
+                        signupError = if (e.code() == 400) "이미 사용 중인 아이디입니다" else "오류가 발생했습니다"
                     }
                 }
             }
@@ -108,7 +101,6 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateUser(user: User) {
         currentUser = user
-        viewModelScope.launch { repository.updateUser(user) }
     }
 
     fun clearLoginError() { loginError = null }

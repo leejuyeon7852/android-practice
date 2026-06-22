@@ -34,9 +34,9 @@ import java.io.File
 fun WriteScreen(
     authorId: Int,
     authorNickname: String,
-    onSaved: (postId: Int) -> Unit,
+    onSaved: (post: com.juyeon.androidpractice.data.network.dto.PostResponse) -> Unit,
     onCancel: () -> Unit,
-    editPost: com.juyeon.androidpractice.data.db.entity.Post? = null,
+    editPost: com.juyeon.androidpractice.data.network.dto.PostResponse? = null,
     viewModel: WriteViewModel = viewModel()
 ) {
     LaunchedEffect(editPost?.id) {
@@ -181,8 +181,8 @@ fun WriteScreen(
 
             Button(
                 onClick = {
-                    if (viewModel.isEditMode) viewModel.onUpdate(onSaved)
-                    else viewModel.onSave(authorId, authorNickname, onSaved)
+                    if (viewModel.isEditMode) viewModel.onUpdate(context, onSaved)
+                    else viewModel.onSave(context, onSaved)
                 },
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = GradientStart),

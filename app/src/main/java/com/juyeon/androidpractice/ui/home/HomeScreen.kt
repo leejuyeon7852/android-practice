@@ -26,10 +26,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
-import com.juyeon.androidpractice.data.db.entity.Post
+import com.juyeon.androidpractice.data.network.dto.PostResponse
 import com.juyeon.androidpractice.ui.theme.GradientStart
 import androidx.compose.foundation.Canvas
 
@@ -41,10 +40,10 @@ fun HomeScreen(
     viewModel: HomeViewModel = viewModel()
 ) {
     LaunchedEffect(currentUserId) {
-        if (currentUserId != -1) viewModel.setCurrentUser(currentUserId)
+        if (currentUserId != -1) viewModel.loadFeed()
     }
 
-    val posts by viewModel.followingPosts.collectAsStateWithLifecycle()
+    val posts = viewModel.posts
     var expanded by remember { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -75,7 +74,6 @@ fun HomeScreen(
                 items(posts, key = { it.id }) { post ->
                     FeedPostCard(
                         post = post,
-                        authorImageUri = viewModel.authorProfiles[post.authorId],
                         onClick = { onPostClick(post.id) },
                         onUserClick = { onUserClick(post.authorId) }
                     )
@@ -95,7 +93,7 @@ fun HomeScreen(
 }
 
 @Composable
-private fun FeedPostCard(post: Post, authorImageUri: String? = null, onClick: () -> Unit, onUserClick: () -> Unit = {}) {
+private fun FeedPostCard(post: PostResponse, onClick: () -> Unit, onUserClick: () -> Unit = {}) {
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -107,21 +105,12 @@ private fun FeedPostCard(post: Post, authorImageUri: String? = null, onClick: ()
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.clickable(onClick = onUserClick)
             ) {
-                if (authorImageUri != null) {
-                    AsyncImage(
-                        model = authorImageUri,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.size(32.dp).clip(CircleShape)
-                    )
-                } else {
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clip(CircleShape)
-                            .background(Color.LightGray)
-                    )
-                }
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(Color.LightGray)
+                )
                 Spacer(modifier = Modifier.width(8.dp))
                 Column {
                     Text(text = post.authorNickname, fontWeight = FontWeight.Medium, fontSize = 13.sp)
@@ -139,10 +128,10 @@ private fun FeedPostCard(post: Post, authorImageUri: String? = null, onClick: ()
                     maxLines = 2
                 )
             }
-            if (post.imageUri != null) {
+            if (post.imageUrl != null) {
                 Spacer(modifier = Modifier.height(10.dp))
                 AsyncImage(
-                    model = post.imageUri,
+                    model = post.imageUrl,
                     contentDescription = null,
                     contentScale = ContentScale.Fit,
                     modifier = Modifier

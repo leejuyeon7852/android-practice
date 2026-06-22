@@ -29,7 +29,7 @@ import com.juyeon.androidpractice.ui.post.PostDetailScreen
 import com.juyeon.androidpractice.ui.profile.ProfileScreen
 import com.juyeon.androidpractice.ui.search.SearchScreen
 import com.juyeon.androidpractice.ui.write.WriteScreen
-import com.juyeon.androidpractice.data.db.entity.Post
+import com.juyeon.androidpractice.data.network.dto.PostResponse
 import com.juyeon.androidpractice.ui.profile.UserProfileScreen
 
 class MainActivity : ComponentActivity() {
@@ -44,7 +44,7 @@ class MainActivity : ComponentActivity() {
                 var showSignup by remember { mutableStateOf(false) }
                 var currentRoute by remember { mutableStateOf(BottomNavItem.Home.route) }
                 var selectedPostId by remember { mutableStateOf<Int?>(null) }
-                var editPost by remember { mutableStateOf<Post?>(null) }
+                var editPost by remember { mutableStateOf<PostResponse?>(null) }
                 var selectedUserId by remember { mutableStateOf<Int?>(null) }
 
                 val currentUser = authViewModel.currentUser
@@ -86,9 +86,9 @@ class MainActivity : ComponentActivity() {
                             authorId = currentUser.id,
                             authorNickname = currentUser.nickname,
                             editPost = editPost,
-                            onSaved = { postId ->
+                            onSaved = { post ->
                                 editPost = null
-                                selectedPostId = postId
+                                selectedPostId = post.id
                             },
                             onCancel = { editPost = null }
                         )
@@ -129,9 +129,9 @@ class MainActivity : ComponentActivity() {
                                     BottomNavItem.Write.route -> WriteScreen(
                                         authorId = currentUser.id,
                                         authorNickname = currentUser.nickname,
-                                        onSaved = { postId ->
+                                        onSaved = { post ->
                                             currentRoute = BottomNavItem.Search.route
-                                            selectedPostId = postId
+                                            selectedPostId = post.id
                                         },
                                         onCancel = { currentRoute = BottomNavItem.Home.route }
                                     )

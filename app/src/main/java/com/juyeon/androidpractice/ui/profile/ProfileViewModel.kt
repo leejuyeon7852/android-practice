@@ -1,89 +1,76 @@
 package com.juyeon.androidpractice.ui.profile
 
-import android.app.Application
-import androidx.lifecycle.AndroidViewModel
+import android.content.Context
+import android.net.Uri
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.juyeon.androidpractice.data.db.AppDatabase
-import com.juyeon.androidpractice.data.db.entity.Comment
-import com.juyeon.androidpractice.data.db.entity.Post
 import com.juyeon.androidpractice.data.db.entity.User
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.*
+import com.juyeon.androidpractice.data.network.ApiClient
+import com.juyeon.androidpractice.data.network.dto.CommentResponse
+import com.juyeon.androidpractice.data.network.dto.FollowUserResponse
+import com.juyeon.androidpractice.data.network.dto.PostResponse
+import com.juyeon.androidpractice.data.network.dto.toUser
 import kotlinx.coroutines.launch
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.asRequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
+import java.io.File
+import java.io.FileOutputStream
 
-@OptIn(ExperimentalCoroutinesApi::class)
-class ProfileViewModel(application: Application) : AndroidViewModel(application) {
+class ProfileViewModel : ViewModel() {
 
-    private val db = AppDatabase.getInstance(application)
+    private val api = ApiClient.api
 
-    private val _userId = MutableStateFlow(-1)
+    var myPosts by mutableStateOf<List<PostResponse>>(emptyList())
+        private set
+    var myComments by mutableStateOf<List<CommentResponse>>(emptyList())
+        private set
+    var scrappedPosts by mutableStateOf<List<PostResponse>>(emptyList())
+        private set
+    var likedPosts by mutableStateOf<List<PostResponse>>(emptyList())
+        private set
+    var followerUsers by mutableStateOf<List<FollowUserResponse>>(emptyList())
+        private set
+    var followingUsers by mutableStateOf<List<FollowUserResponse>>(emptyList())
+        private set
 
-    val myPosts: StateFlow<List<Post>> = _userId
-        .filter { it != -1 }
-        .flatMapLatest { db.postDao().getPostsByAuthor(it) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    val myComments: StateFlow<List<Comment>> = _userId
-        .filter { it != -1 }
-        .flatMapLatest { db.commentDao().getCommentsByAuthor(it) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    val scrappedPosts: StateFlow<List<Post>> = _userId
-        .filter { it != -1 }
-        .flatMapLatest { uid ->
-            db.scrapDao().getScrappedPostIds(uid).flatMapLatest { ids ->
-                if (ids.isEmpty()) flowOf(emptyList())
-                else db.postDao().getPostsByIds(ids)
-            }
+    fun load() {
+        viewModelScope.launch {
+            try { myPosts = api.getMyPosts() } catch (_: Exception) {}
+            try { myComments = api.getMyComments() } catch (_: Exception) {}
+            try { scrappedPosts = api.getMyScraps() } catch (_: Exception) {}
+            try { likedPosts = api.getMyLikes() } catch (_: Exception) {}
+            try { followerUsers = api.getMyFollowers() } catch (_: Exception) {}
+            try { followingUsers = api.getMyFollowing() } catch (_: Exception) {}
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    val likedPosts: StateFlow<List<Post>> = _userId
-        .filter { it != -1 }
-        .flatMapLatest { uid ->
-            db.likeDao().getLikedPostIds(uid).flatMapLatest { ids ->
-                if (ids.isEmpty()) flowOf(emptyList())
-                else db.postDao().getPostsByIds(ids)
-            }
-        }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    val followerCount: StateFlow<Int> = _userId
-        .filter { it != -1 }
-        .flatMapLatest { db.followDao().getFollowerCount(it) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
-
-    val followingCount: StateFlow<Int> = _userId
-        .filter { it != -1 }
-        .flatMapLatest { db.followDao().getFollowingCount(it) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
-
-    val followerUsers: StateFlow<List<com.juyeon.androidpractice.data.db.entity.User>> = _userId
-        .filter { it != -1 }
-        .flatMapLatest { uid ->
-            db.followDao().getFollowerIds(uid).map { ids ->
-                if (ids.isEmpty()) emptyList() else db.userDao().getUsersByIds(ids)
-            }
-        }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    val followingUsers: StateFlow<List<com.juyeon.androidpractice.data.db.entity.User>> = _userId
-        .filter { it != -1 }
-        .flatMapLatest { uid ->
-            db.followDao().getFollowingIds(uid).map { ids ->
-                if (ids.isEmpty()) emptyList() else db.userDao().getUsersByIds(ids)
-            }
-        }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    fun init(userId: Int) {
-        if (_userId.value != userId) _userId.value = userId
     }
 
-    fun updateProfile(user: User, onDone: (User) -> Unit) {
+    fun updateProfile(
+        context: Context,
+        nickname: String?,
+        imageUri: Uri?,
+        onDone: (User) -> Unit,
+    ) {
         viewModelScope.launch {
-            db.userDao().update(user)
-            onDone(user)
+            try {
+                val nicknamePart = nickname?.toRequestBody("text/plain".toMediaTypeOrNull())
+                val imagePart = imageUri?.let { uri ->
+                    if (uri.toString().startsWith("http")) null
+                    else {
+                        val inputStream = context.contentResolver.openInputStream(uri)!!
+                        val file = File(context.cacheDir, "profile_${System.currentTimeMillis()}")
+                        FileOutputStream(file).use { it.write(inputStream.readBytes()) }
+                        val requestBody = file.asRequestBody("image/*".toMediaTypeOrNull())
+                        MultipartBody.Part.createFormData("image", file.name, requestBody)
+                    }
+                }
+                val updated = api.updateMe(nicknamePart, imagePart).toUser()
+                onDone(updated)
+            } catch (_: Exception) {}
         }
     }
 }

@@ -6,7 +6,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Visibility
@@ -24,7 +23,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.juyeon.androidpractice.data.db.entity.User
 import com.juyeon.androidpractice.ui.theme.GradientStart
 
 @Composable
@@ -37,11 +35,6 @@ fun SignupScreen(
     var passwordConfirm by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     var passwordConfirmVisible by remember { mutableStateOf(false) }
-
-    var nationalityExpanded by remember { mutableStateOf(false) }
-    var genderExpanded by remember { mutableStateOf(false) }
-    val nationalities = listOf("대한민국", "미국", "일본", "중국", "기타")
-    val genders = listOf("남성", "여성", "선택 안함")
 
     Column(
         modifier = Modifier
@@ -153,29 +146,6 @@ fun SignupScreen(
             )
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // 국적 드롭다운
-        DropdownField(
-            value = draft.nationality,
-            placeholder = "국적 (선택)",
-            expanded = nationalityExpanded,
-            options = nationalities,
-            onExpandedChange = { nationalityExpanded = it },
-            onOptionSelected = { viewModel.updateDraft { copy(nationality = it) }; nationalityExpanded = false }
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // 성별 드롭다운
-        DropdownField(
-            value = draft.gender,
-            placeholder = "성별 (선택)",
-            expanded = genderExpanded,
-            options = genders,
-            onExpandedChange = { genderExpanded = it },
-            onOptionSelected = { viewModel.updateDraft { copy(gender = it) }; genderExpanded = false }
-        )
-
         // 에러 메시지
         viewModel.signupError?.let { error ->
             Text(
@@ -247,49 +217,6 @@ private fun AuthTextField(
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun DropdownField(
-    value: String,
-    placeholder: String,
-    expanded: Boolean,
-    options: List<String>,
-    onExpandedChange: (Boolean) -> Unit,
-    onOptionSelected: (String) -> Unit
-) {
-    ExposedDropdownMenuBox(
-        expanded = expanded,
-        onExpandedChange = onExpandedChange,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        OutlinedTextField(
-            value = value,
-            onValueChange = {},
-            readOnly = true,
-            placeholder = { Text(placeholder) },
-            trailingIcon = { Icon(Icons.Filled.KeyboardArrowDown, contentDescription = null) },
-            shape = RoundedCornerShape(12.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                unfocusedContainerColor = Color.White,
-                focusedContainerColor = Color.White
-            ),
-            modifier = Modifier
-                .fillMaxWidth()
-                .menuAnchor()
-        )
-        ExposedDropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { onExpandedChange(false) }
-        ) {
-            options.forEach { option ->
-                DropdownMenuItem(
-                    text = { Text(option) },
-                    onClick = { onOptionSelected(option) }
-                )
-            }
-        }
-    }
-}
 
 @Preview(showBackground = true, showSystemUi = true)
 @Composable

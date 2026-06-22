@@ -1,22 +1,25 @@
 package com.juyeon.androidpractice.ui.write
 
-import android.app.Application
+import android.content.Context
 import android.net.Uri
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.juyeon.androidpractice.data.db.AppDatabase
-import com.juyeon.androidpractice.data.db.entity.Post
-import com.juyeon.androidpractice.data.repository.post.PostRepositoryImpl
+import com.juyeon.androidpractice.data.network.ApiClient
+import com.juyeon.androidpractice.data.network.dto.PostResponse
 import kotlinx.coroutines.launch
-import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.asRequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
+import java.io.File
+import java.io.FileOutputStream
 
-class WriteViewModel(application: Application) : AndroidViewModel(application) {
+class WriteViewModel : ViewModel() {
 
-    private val repository = PostRepositoryImpl(AppDatabase.getInstance(application).postDao())
+    private val api = ApiClient.api
 
     var title by mutableStateOf("")
         private set
@@ -29,65 +32,79 @@ class WriteViewModel(application: Application) : AndroidViewModel(application) {
     var isEditMode by mutableStateOf(false)
         private set
 
-    private var editingPost: Post? = null
+    private var editingPost: PostResponse? = null
 
-    fun initForEdit(post: Post) {
+    fun initForEdit(post: PostResponse) {
         editingPost = post
         title = post.title
         body = post.body
-        imageUri = post.imageUri?.let { Uri.parse(it) }
+        imageUri = post.imageUrl?.let { Uri.parse(it) }
         isEditMode = true
     }
 
     fun onTitleChange(value: String) { title = value }
     fun onBodyChange(value: String) { body = value }
     fun onImageSelected(uri: Uri?) { imageUri = uri }
+
     fun onCancelClick(onCancel: () -> Unit) {
         if (title.isNotBlank() || body.isNotBlank()) showCancelDialog = true
         else { resetState(); onCancel() }
     }
+
     fun onDismissDialog() { showCancelDialog = false }
+
     fun onConfirmCancel(onDone: () -> Unit) {
         resetState()
         showCancelDialog = false
         onDone()
     }
 
-    fun onSave(authorId: Int, authorNickname: String, onSaved: (postId: Int) -> Unit) {
+    fun onSave(context: Context, onSaved: (post: PostResponse) -> Unit) {
         if (title.isBlank()) return
-        val now = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
         viewModelScope.launch {
-            val postId = repository.savePost(
-                Post(
-                    authorId = authorId,
-                    authorNickname = authorNickname,
-                    title = title,
-                    body = body,
-                    imageUri = imageUri?.toString(),
-                    createdAt = now,
+            try {
+                val imagePart = imageUri?.toMultipart(context, "image")
+                val result = api.createPost(
+                    title = title.toRequestBody("text/plain".toMediaTypeOrNull()),
+                    body = body.toRequestBody("text/plain".toMediaTypeOrNull()),
+                    image = imagePart,
                 )
-            )
-            resetState()
-            onSaved(postId.toInt())
+                resetState()
+                onSaved(result)
+            } catch (_: Exception) {}
         }
     }
 
-    fun onUpdate(onDone: (postId: Int) -> Unit) {
+    fun onUpdate(context: Context, onDone: (post: PostResponse) -> Unit) {
         val original = editingPost ?: return
         if (title.isBlank()) return
         viewModelScope.launch {
-            val updated = original.copy(
-                title = title,
-                body = body,
-                imageUri = imageUri?.toString()
-            )
-            repository.updatePost(updated)
-            resetState()
-            onDone(original.id)
+            try {
+                val imagePart = imageUri?.let { uri ->
+                    if (!uri.toString().startsWith("http")) uri.toMultipart(context, "image")
+                    else null
+                }
+                val result = api.updatePost(
+                    postId = original.id,
+                    title = title.toRequestBody("text/plain".toMediaTypeOrNull()),
+                    body = body.toRequestBody("text/plain".toMediaTypeOrNull()),
+                    image = imagePart,
+                )
+                resetState()
+                onDone(result)
+            } catch (_: Exception) {}
         }
     }
 
     private fun resetState() {
         title = ""; body = ""; imageUri = null; isEditMode = false; editingPost = null
     }
+}
+
+private fun Uri.toMultipart(context: Context, partName: String): MultipartBody.Part {
+    val inputStream = context.contentResolver.openInputStream(this)!!
+    val file = File(context.cacheDir, "upload_${System.currentTimeMillis()}")
+    FileOutputStream(file).use { out -> inputStream.copyTo(out) }
+    val requestBody = file.asRequestBody("image/*".toMediaTypeOrNull())
+    return MultipartBody.Part.createFormData(partName, file.name, requestBody)
 }

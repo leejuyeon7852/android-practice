@@ -18,9 +18,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import coil.compose.AsyncImage
 import com.juyeon.androidpractice.data.db.entity.User
 import com.juyeon.androidpractice.ui.search.PostCard
 import com.juyeon.androidpractice.ui.theme.GradientStart
@@ -38,9 +36,7 @@ fun UserProfileScreen(
         viewModel.init(targetUserId, currentUser.id)
     }
 
-    val posts by viewModel.posts.collectAsStateWithLifecycle()
-    val followerCount by viewModel.followerCount.collectAsStateWithLifecycle()
-    val followingCount by viewModel.followingCount.collectAsStateWithLifecycle()
+    val posts = viewModel.posts
     val user = viewModel.targetUser
 
     Scaffold(
@@ -69,36 +65,25 @@ fun UserProfileScreen(
                         .padding(horizontal = 20.dp, vertical = 16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // 프로필 이미지
-                    if (user?.profileImageUri != null) {
-                        AsyncImage(
-                            model = user.profileImageUri,
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.size(80.dp).clip(CircleShape)
-                        )
-                    } else {
-                        Box(
-                            modifier = Modifier
-                                .size(80.dp)
-                                .clip(CircleShape)
-                                .background(Color.LightGray)
-                        )
-                    }
+                    Box(
+                        modifier = Modifier
+                            .size(80.dp)
+                            .clip(CircleShape)
+                            .background(Color.LightGray)
+                    )
 
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(text = user?.nickname ?: "", fontWeight = FontWeight.Bold, fontSize = 18.sp)
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // 팔로워/팔로잉 수
                     Row(horizontalArrangement = Arrangement.spacedBy(32.dp)) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(text = "$followerCount", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text(text = "${user?.followerCount ?: 0}", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                             Text(text = "팔로워", fontSize = 12.sp, color = Color.Gray)
                         }
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(text = "$followingCount", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text(text = "${user?.followingCount ?: 0}", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                             Text(text = "팔로잉", fontSize = 12.sp, color = Color.Gray)
                         }
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -114,9 +99,9 @@ fun UserProfileScreen(
                         onClick = { viewModel.toggleFollow(currentUser.id, currentUser.nickname) },
                         shape = RoundedCornerShape(20.dp),
                         colors = if (viewModel.isFollowing)
-                            ButtonDefaults.buttonColors(containerColor = GradientStart)
+                            ButtonDefaults.buttonColors(containerColor = Color.LightGray)
                         else
-                            ButtonDefaults.buttonColors(containerColor = Color.LightGray),
+                            ButtonDefaults.buttonColors(containerColor = GradientStart),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(

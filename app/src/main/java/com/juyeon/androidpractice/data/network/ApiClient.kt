@@ -9,6 +9,11 @@ object ApiClient {
     // 에뮬레이터에서 호스트 PC localhost를 가리키는 주소
     private const val BASE_URL = "http://10.0.2.2:8000/"
 
+    fun imageUrl(path: String?): String? {
+        if (path == null) return null
+        return if (path.startsWith("http")) path else BASE_URL + path.trimStart('/')
+    }
+
     private var tokenManager: TokenManager? = null
 
     fun init(tokenManager: TokenManager) {
